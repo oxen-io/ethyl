@@ -28,8 +28,6 @@
 
 #include "hmac-keccak.h"
 
-#include "epee/memwipe.h"
-
 #define KECCAK_BLOCKLEN 136
 #define HASH_SIZE 32
 

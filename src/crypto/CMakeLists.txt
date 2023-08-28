@@ -30,8 +30,6 @@
 add_library(cncrypto
   aesb.c
   blake256.c
-  chacha.c
-  chacha.cpp
   crypto-ops-data.c
   crypto-ops.c
   crypto.cpp

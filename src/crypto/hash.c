@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "epee/int-util.h"
+#include "int-util.h"
 #include "hash-ops.h"
 #include "keccak.h"
 

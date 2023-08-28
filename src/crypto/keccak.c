@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "epee/int-util.h"
+#include "int-util.h"
 #include "hash-ops.h"
 
 static void local_abort(const char* msg) {
