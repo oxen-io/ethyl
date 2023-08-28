@@ -107,7 +107,6 @@ target_include_directories(
     PUBLIC
     $<INSTALL_INTERFACE:include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 message(STATUS "Finished setting up include directories.")
