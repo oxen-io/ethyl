@@ -32,14 +32,12 @@ add_library(cncrypto
   blake256.c
   crypto-ops-data.c
   crypto-ops.c
-  crypto.cpp
   groestl.c
   hash-extra-blake.c
   hash-extra-groestl.c
   hash-extra-jh.c
   hash-extra-skein.c
   hash.c
-  hash.cpp
   hmac-keccak.c
   jh.c
   keccak.c
@@ -57,7 +55,6 @@ target_link_libraries(cncrypto
     Boost::thread
     sodium
   PRIVATE
-    logging
     )
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
