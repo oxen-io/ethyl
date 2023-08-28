@@ -29,14 +29,10 @@ jobs:
 
     - name: CMake Generate
       run: cmake ..
-      working-directory: build
 
     - name: Compile
       run: make -j8
-      working-directory: build
 
-    # Add steps for running tests if they exist.
     - name: Run tests
-      run: make test  # Replace this with your test running command, if different.
-      working_directory: build
+      run: make test
 
