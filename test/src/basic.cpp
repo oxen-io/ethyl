@@ -2,7 +2,11 @@
 #include <assert.h>
 #include <string.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wduplicated-branches"
 #include <cpr/cpr.h>
+#pragma GCC diagnostic pop
+
 #include <secp256k1.h>
 
 #include "ethyl/ecdsa_util.h"

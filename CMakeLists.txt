@@ -12,6 +12,7 @@ project(
 #
 # Set project options
 #
+set(${PROJECT_NAME}_WARNINGS_AS_ERRORS ON CACHE BOOL "" FORCE)
 
 include(cmake/StandardSettings.cmake)
 include(cmake/StaticAnalyzers.cmake)
