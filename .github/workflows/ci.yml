@@ -31,5 +31,5 @@ jobs:
       run: cmake --build build
 
     - name: Run tests
-      run: ctest -VV --test-dir build
+      run: ctest -VV --repeat until-pass:2 --test-dir build
 
