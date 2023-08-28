@@ -28,7 +28,7 @@ jobs:
       run: cmake -Bbuild -H.
 
     - name: Compile
-      run: make
+      run: cmake --build build
 
     - name: Run tests
       run: make test
