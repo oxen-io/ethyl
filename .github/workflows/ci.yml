@@ -1,0 +1,42 @@
+name: Ubuntu CI Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - name: Install prerequisites
+      run: sudo apt-get update && sudo apt-get install -y cmake build-essential libboost-all-dev libssl-dev libcurl4-openssl-dev libsodium-dev
+
+    - name: Create Build Directory
+      run: mkdir -p build
+
+    - name: Navigate to Build Directory
+      run: cd build
+
+    - name: CMake Generate
+      run: cmake ..
+      working-directory: build
+
+    - name: Compile
+      run: make -j8
+      working-directory: build
+
+    # Add steps for running tests if they exist.
+    - name: Run tests
+      run: make test  # Replace this with your test running command, if different.
+      working_directory: build
+
