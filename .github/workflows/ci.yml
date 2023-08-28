@@ -24,14 +24,11 @@ jobs:
     - name: Create Build Directory
       run: mkdir -p build
 
-    - name: Navigate to Build Directory
-      run: cd build
-
     - name: CMake Generate
-      run: cmake ..
+      run: cmake -Bbuild -H.
 
     - name: Compile
-      run: make -j8
+      run: make
 
     - name: Run tests
       run: make test
