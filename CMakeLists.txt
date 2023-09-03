@@ -43,7 +43,9 @@ endif()
 include(cmake/SourcesAndHeaders.cmake)
 
 find_package(Boost 1.62 QUIET REQUIRED COMPONENTS system thread serialization program_options)
-add_subdirectory(src/crypto)
+if(${PROJECT_NAME}_ENABLE_CRYPTO_LIBRARY)
+    add_subdirectory(src/crypto)
+endif()
 add_subdirectory(external)
 
 add_library(

@@ -14,6 +14,11 @@ Include(FetchContent)
 option(${PROJECT_NAME}_ENABLE_UNIT_TESTING "Enable unit tests for the projects (from the `test` subfolder)." ON)
 
 #
+# Crypto Library
+#
+option(${PROJECT_NAME}_ENABLE_CRYPTO_LIBRARY "Use the internal crypto library" ON)
+
+#
 # Static analyzers
 #
 # Currently supporting: Clang-Tidy, Cppcheck.
