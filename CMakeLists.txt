@@ -9,10 +9,20 @@ project(
   VERSION 0.1.0
 )
 
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    set(${PROJECT_NAME}_IS_TOPLEVEL_PROJECT TRUE)
+else()
+    set(${PROJECT_NAME}_IS_TOPLEVEL_PROJECT FALSE)
+endif()
+
 #
 # Set project options
 #
-set(${PROJECT_NAME}_WARNINGS_AS_ERRORS ON CACHE BOOL "" FORCE)
+if(${PROJECT_NAME}_IS_TOPLEVEL_PROJECT)
+    set(${PROJECT_NAME}_WARNINGS_AS_ERRORS ON CACHE BOOL "" FORCE)
+else()
+    set(${PROJECT_NAME}_ENABLE_UNIT_TESTING FALSE CACHE BOOL "" FORCE)
+endif()
 
 include(cmake/StandardSettings.cmake)
 include(cmake/StaticAnalyzers.cmake)
