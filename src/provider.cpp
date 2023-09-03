@@ -1,5 +1,6 @@
 // provider.cpp
 #include <iostream>
+#include <thread>
 
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"

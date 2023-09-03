@@ -25,8 +25,8 @@ void Signer::initContext() {
     if (!fill_random(randomize, sizeof(randomize))) {
         throw std::runtime_error("Failed to generate randomness");
     }
-    int return_val = secp256k1_context_randomize(ctx, randomize);
-    assert(return_val);
+    if (!secp256k1_context_randomize(ctx, randomize))
+        throw std::runtime_error("Failed to randomize context");
 }
 
 Signer::~Signer() {
@@ -37,7 +37,6 @@ std::pair<std::vector<unsigned char>, std::vector<unsigned char>> Signer::genera
     unsigned char seckey[32];
     unsigned char compressed_pubkey[33];
     size_t len;
-    int return_val;
     secp256k1_pubkey pubkey;
 
     while (1) {
@@ -49,12 +48,12 @@ std::pair<std::vector<unsigned char>, std::vector<unsigned char>> Signer::genera
         }
     }
 
-    return_val = secp256k1_ec_pubkey_create(ctx, &pubkey, seckey);
-    assert(return_val);
+    if (!secp256k1_ec_pubkey_create(ctx, &pubkey, seckey))
+        throw std::runtime_error("Failed to create pubkey");
 
     len = sizeof(compressed_pubkey);
-    return_val = secp256k1_ec_pubkey_serialize(ctx, compressed_pubkey, &len, &pubkey, SECP256K1_EC_COMPRESSED);
-    assert(return_val);
+    if (!secp256k1_ec_pubkey_serialize(ctx, compressed_pubkey, &len, &pubkey, SECP256K1_EC_COMPRESSED))
+        throw std::runtime_error("Failed to serialize pubkey");
     assert(len == sizeof(compressed_pubkey));
 
     return {std::vector<unsigned char>(seckey, seckey + sizeof(seckey)), 
@@ -96,13 +95,12 @@ std::vector<unsigned char> Signer::sign(const std::array<unsigned char, 32>& has
     secp256k1_ecdsa_recoverable_signature sig;
     unsigned char serialized_signature[64];
     int recid;
-    int return_val;
 
-    return_val = secp256k1_ecdsa_sign_recoverable(ctx, &sig, hash.data(), seckey.data(), NULL, NULL);
-    assert(return_val);
+    if (!secp256k1_ecdsa_sign_recoverable(ctx, &sig, hash.data(), seckey.data(), NULL, NULL))
+        throw std::runtime_error("Failed to sign");
 
-    return_val = secp256k1_ecdsa_recoverable_signature_serialize_compact(ctx, serialized_signature, &recid, &sig);
-    assert(return_val);
+    if (!secp256k1_ecdsa_recoverable_signature_serialize_compact(ctx, serialized_signature, &recid, &sig))
+        throw std::runtime_error("Failed to serialize signature");
 
     // Create a vector and fill it with the serialized signature
     std::vector<unsigned char> signature(serialized_signature, serialized_signature + sizeof(serialized_signature));

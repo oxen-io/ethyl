@@ -2,8 +2,13 @@
 #pragma once
 
 #include <string>
+#include <optional>
+
 #include <cpr/cpr.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuseless-cast"
 #include <nlohmann/json.hpp>
+#pragma GCC diagnostic pop
 
 #include "transaction.hpp"
 
