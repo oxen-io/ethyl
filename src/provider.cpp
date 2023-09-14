@@ -46,27 +46,29 @@ cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nloh
     return session.Post();
 }
 
-std::string Provider::callReadFunction(const ReadCallData& callData) {
+std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt) {
+    std::stringstream stream;
+    stream << "0x" << std::hex << blockNumberInt;  // Convert uint64_t to hex string
+    std::string blockNumberHex = stream.str();
+    
+    return callReadFunction(callData, blockNumberHex);  // Call the original function
+}
+
+std::string Provider::callReadFunction(const ReadCallData& callData, const std::string& blockNumber) {
     // Prepare the params for the eth_call request
     nlohmann::json params = nlohmann::json::array();
     params[0]["to"] = callData.contractAddress;
     params[0]["data"] = callData.data;
-    params[1] = "latest"; // or the block number you want to query against
-
-    // Make the request
+    params[1] = blockNumber; // use the provided block number or default to "latest"
     cpr::Response response = makeJsonRpcRequest("eth_call", params);
 
     if (response.status_code == 200) {
-        // Parse the response
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        // Check if the result field is present and not null, if it exists then it contains the return value
         if (!responseJson["result"].is_null()) {
             return responseJson["result"];
         }
     }
 
-    // If we couldn't get the result, throw an exception
     throw std::runtime_error("Unable to get the result of the function call");
 }
 
