@@ -38,7 +38,8 @@ public:
     void disconnectFromNetwork();
 
     uint64_t getTransactionCount(const std::string& address, const std::string& blockTag);
-    std::string callReadFunction(const ReadCallData& callData);
+    std::string callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
+    std::string callReadFunction(const ReadCallData& callData, const std::string& blockNumber = "latest");
     uint32_t getNetworkChainId();
     std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
     std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
