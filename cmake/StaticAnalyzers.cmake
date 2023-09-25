@@ -11,8 +11,20 @@ endif()
 if(${PROJECT_NAME}_ENABLE_CPPCHECK)
   find_program(CPPCHECK cppcheck)
   if(CPPCHECK)
-    set(CMAKE_CXX_CPPCHECK ${CPPCHECK} --suppress=missingInclude --enable=all
-                           --inline-suppr --inconclusive -i ${CMAKE_SOURCE_DIR}/imgui/lib)
+    set(cppcheck_opts --enable=all --inconclusive --inline-suppr --suppressions-list=${PROJECT_SOURCE_DIR}/cmake/CppCheckSuppressions.txt)
+
+    set(cppcheck_dirs_and_files
+        ${PROJECT_SOURCE_DIR}/src/
+        ${PROJECT_SOURCE_DIR}/include/ethyl/
+    )
+    set(cppcheck_ignore_dirs
+        ${PROJECT_SOURCE_DIR}/src/crypto/
+        ${PROJECT_SOURCE_DIR}/external/
+    )
+    foreach(ignore_dir ${cppcheck_ignore_dirs})
+        list(APPEND cppcheck_opts "-i" ${ignore_dir})
+    endforeach()
+    set(CMAKE_CXX_CPPCHECK ${CPPCHECK} --std=c++17 ${cppcheck_opts} ${cppcheck_dirs_and_files})
     message("Cppcheck finished setting up.")
   else()
     message(SEND_ERROR "Cppcheck requested but executable not found.")
