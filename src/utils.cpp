@@ -93,21 +93,17 @@ std::string utils::padTo32Bytes(const std::string& input, utils::PaddingDirectio
         output = output.substr(2);  // remove "0x" prefix for now
     }
 
-    if(output.size() > targetSize) {
-        throw std::runtime_error("Input size is greater than target size");
+    // Calculate padding size based on targetSize
+    size_t nextMultiple = (output.size() + targetSize - 1) / targetSize * targetSize;
+    size_t paddingSize = nextMultiple - output.size();
+    std::string padding(paddingSize, '0');
+     
+    if(direction == utils::PaddingDirection::LEFT) {
+        output = padding + output;
     }
-    else if(output.size() < targetSize) {
-        size_t paddingSize = targetSize - input.size();
-        //std::string padding(paddingSize, 0);
-        std::string padding(paddingSize, '0');
-
-        if(direction == utils::PaddingDirection::LEFT) {
-            output = padding + output;
-        }
-        else {
-            output += padding;
-        }
-    }
+    else {
+        output += padding;
+    }    
 
     // If input started with "0x", add it back
     if (has0xPrefix) {
