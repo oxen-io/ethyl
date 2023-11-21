@@ -51,3 +51,8 @@ if(NOT TARGET nlohmann_json)
     set(JSON_MultipleHeaders ON CACHE BOOL "") # Allows multi-header nlohmann use
     add_subdirectory(json EXCLUDE_FROM_ALL)
 endif()
+
+find_library(gmp gmp)
+if(NOT gmp)
+  message(FATAL_ERROR "gmp not found")
+endif()

@@ -298,11 +298,11 @@ uint64_t Provider::gasUsed(const std::string& txHash, int64_t timeout) {
     return futureTx.get();
 }
 
-uint64_t Provider::getBalance(const std::string& address) {
+mpz_class Provider::getBalance(const std::string& address) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back("latest");
-
+    
     auto response = makeJsonRpcRequest("eth_getBalance", params);
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
@@ -312,8 +312,9 @@ uint64_t Provider::getBalance(const std::string& address) {
 
         std::string balanceHex = responseJson["result"].get<std::string>();
 
-        // Convert balance from hex to decimal
-        uint64_t balance = std::stoull(balanceHex, nullptr, 16);
+        // Convert balance from hex to GMP multi-precision integer
+        mpz_class balance;
+        balance.set_str(balanceHex, 0); // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
 
         return balance;
     } else {
