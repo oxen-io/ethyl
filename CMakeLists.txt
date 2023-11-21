@@ -106,6 +106,8 @@ target_link_libraries(
     secp256k1
     rlpvalue
     nlohmann_json::nlohmann_json
+    gmp
+    gmpxx
   PRIVATE
 )
 

@@ -13,7 +13,7 @@ TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {
     Provider client("Sepolia Client", std::string("https://eth-sepolia.g.alchemy.com/v2/xjUjCAfxli88pqe7UjR4Tt1Jp2GKPJvy"));
 
     // Get the balance of the test address
-    uint64_t balance = client.getBalance("0x2Ccb8b65024E4aA9615a8E704DFb11BE76674f1F");
+    auto balance = client.getBalance("0x2Ccb8b65024E4aA9615a8E704DFb11BE76674f1F");
 
     // Check that the balance is greater than zero
     REQUIRE( balance > 0 );

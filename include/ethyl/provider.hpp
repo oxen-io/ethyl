@@ -5,6 +5,7 @@
 #include <optional>
 
 #include <cpr/cpr.h>
+#include <gmpxx.h>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuseless-cast"
 #include <nlohmann/json.hpp>
@@ -50,7 +51,7 @@ public:
     uint64_t waitForTransaction(const std::string& txHash, int64_t timeout = 320000);
     bool transactionSuccessful(const std::string& txHash, int64_t timeout = 320000);
     uint64_t gasUsed(const std::string& txHash, int64_t timeout = 320000);
-    uint64_t getBalance(const std::string& address);
+    mpz_class getBalance(const std::string& address);
 
     FeeData getFeeData();
 
