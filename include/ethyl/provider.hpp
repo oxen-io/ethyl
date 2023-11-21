@@ -52,6 +52,7 @@ public:
     bool transactionSuccessful(const std::string& txHash, int64_t timeout = 320000);
     uint64_t gasUsed(const std::string& txHash, int64_t timeout = 320000);
     mpz_class getBalance(const std::string& address);
+    std::string getContractDeployedInLatestBlock();
 
     FeeData getFeeData();
 

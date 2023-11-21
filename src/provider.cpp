@@ -322,6 +322,25 @@ mpz_class Provider::getBalance(const std::string& address) {
     }
 }
 
+std::string Provider::getContractDeployedInLatestBlock() {
+    nlohmann::json params = nlohmann::json::array();
+    params.push_back("latest");
+    params.push_back(true);
+    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
+    if (blockResponse.status_code != 200)
+        throw std::runtime_error("Failed to get the latest block");
+    nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
+
+    for (const auto& tx : blockJson["result"]["transactions"]) {
+        std::optional<nlohmann::json> transactionReceipt = getTransactionReceipt(tx["hash"].get<std::string>());
+        if (transactionReceipt.has_value())
+            return transactionReceipt->at("contractAddress").get<std::string>();
+    }
+
+    throw std::runtime_error("No contracts deployed in latest block");
+}
+
+
 FeeData Provider::getFeeData() {
     // Get latest block
     nlohmann::json params = nlohmann::json::array();
