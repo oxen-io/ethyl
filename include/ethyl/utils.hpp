@@ -52,5 +52,7 @@ namespace utils
 
     std::string generateRandomString(size_t length);
 
+    std::string trimAddress(const std::string& address);
+
 // END
 }

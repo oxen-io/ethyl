@@ -65,7 +65,6 @@ std::array<unsigned char, 32> utils::hash(std::string in) {
         bytes = fromHexString(in);
         in = std::string(bytes.begin(), bytes.end());
     }
-
     std::array<unsigned char, 32> hash;
     keccak(reinterpret_cast<const uint8_t*>(in.c_str()), in.size(), hash.data(), 32);
     return hash;
@@ -153,4 +152,26 @@ std::string utils::generateRandomString(size_t length) {
     }
 
     return randomString;
+}
+
+std::string utils::trimAddress(const std::string& address) {
+    if (address.length() <= 42) {
+        // Address is already 20 bytes or shorter, no need to trim
+        return address;
+    }
+
+    // Check if the address starts with "0x" or "0X"
+    if (address.substr(0, 2) != "0x" && address.substr(0, 2) != "0X") {
+        return address;
+    }
+
+    // Find the first non-zero character after "0x"
+    size_t firstNonZero = address.find_first_not_of('0', 2);
+    if (firstNonZero == std::string::npos) {
+        // Address only contains zeros, return "0x" followed by 20 bytes of zero
+        return "0x" + std::string(40, '0');
+    }
+
+    // Trim and return the address
+    return "0x" + address.substr(firstNonZero, 40);
 }
