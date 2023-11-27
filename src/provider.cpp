@@ -5,6 +5,8 @@
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"
 
+#include <gmpxx.h>
+
 
 Provider::Provider(const std::string& name, const std::string& _url) 
     : clientName(name), url(_url) {
@@ -298,7 +300,7 @@ uint64_t Provider::gasUsed(const std::string& txHash, int64_t timeout) {
     return futureTx.get();
 }
 
-mpz_class Provider::getBalance(const std::string& address) {
+std::string Provider::getBalance(const std::string& address) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back("latest");
@@ -316,7 +318,7 @@ mpz_class Provider::getBalance(const std::string& address) {
         mpz_class balance;
         balance.set_str(balanceHex, 0); // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
 
-        return balance;
+        return balance.get_str();
     } else {
         throw std::runtime_error("Failed to get balance for address " + address);
     }
