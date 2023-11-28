@@ -40,7 +40,12 @@ public:
     uint64_t getTransactionCount(const std::string& address, const std::string& blockTag);
     std::string callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
     std::string callReadFunction(const ReadCallData& callData, const std::string& blockNumber = "latest");
+
     uint32_t getNetworkChainId();
+    std::string evm_snapshot();
+    bool evm_revert(const std::string& snapshotId);
+    uint64_t evm_setTime(const std::string& time);
+
     std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
     std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
 
