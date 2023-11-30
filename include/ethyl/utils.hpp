@@ -44,6 +44,9 @@ namespace utils
     std::array<unsigned char, 32> hash(std::string in);
 
     std::string getFunctionSignature(const std::string& function);
+
+    std::string padToNBytes(const std::string& input, size_t byte_count, PaddingDirection direction = PaddingDirection::LEFT);
+    std::string padTo8Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
     std::string padTo32Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
 
     std::vector<unsigned char> intToBytes(uint64_t num);
