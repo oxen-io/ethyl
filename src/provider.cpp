@@ -127,23 +127,6 @@ bool Provider::evm_revert(const std::string& snapshotId) {
     throw std::runtime_error("Unable to revert to snapshot");
 }
 
-uint64_t Provider::evm_setTime(const std::string& time) {
-    nlohmann::json params = nlohmann::json::array();
-    params.push_back(time);
-
-    cpr::Response response = makeJsonRpcRequest("evm_setTime", params);
-
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-        if (!responseJson["result"].is_null()) {
-            std::string secondsHex = responseJson["result"];
-            return std::stoull(secondsHex, nullptr, 16);
-        }
-    }
-
-    throw std::runtime_error("Unable to set time");
-}
-
 uint64_t Provider::getTransactionCount(const std::string& address, const std::string& blockTag) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
