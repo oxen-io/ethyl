@@ -3,6 +3,7 @@
 
 #include <string>
 #include <optional>
+#include <chrono>
 
 #include <cpr/cpr.h>
 #pragma GCC diagnostic push
@@ -44,7 +45,45 @@ public:
     uint32_t getNetworkChainId();
     std::string evm_snapshot();
     bool evm_revert(const std::string& snapshotId);
-    uint64_t evm_setTime(const std::string& time);
+
+    template <typename Rep, typename Period>
+    uint64_t evm_increaseTime(const std::chrono::duration<Rep, Period>& duration) {
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
+
+        nlohmann::json params = nlohmann::json::array();
+        params.push_back(seconds);
+
+        cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
+        if (response.status_code != 200) {
+            throw std::runtime_error("Unable to set time");
+        }
+        nlohmann::json responseJson = nlohmann::json::parse(response.text);
+        if (!responseJson.contains("result") && responseJson.contains("error")) {
+            std::string errorMessage = "JSON RPC error: (evm_increaseTime)" + responseJson["error"]["message"].get<std::string>();
+            if (responseJson["error"].contains("data") && responseJson["error"]["data"].contains("message")) {
+                errorMessage += " - " + responseJson["error"]["data"]["message"].get<std::string>();
+            }
+            throw std::runtime_error(errorMessage);
+        } else if (responseJson["result"].is_null()) {
+            throw std::runtime_error("Null result in response");
+        }
+        response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
+        if (response.status_code != 200) {
+            throw std::runtime_error("Unable to set time");
+        }
+        nlohmann::json mineResponseJson = nlohmann::json::parse(response.text);
+        if (!mineResponseJson.contains("result") && mineResponseJson.contains("error")) {
+            std::string errorMessage = "JSON RPC error (evm_mine): " + mineResponseJson["error"]["message"].get<std::string>();
+            if (mineResponseJson["error"].contains("data") && mineResponseJson["error"]["data"].contains("message")) {
+                errorMessage += " - " + mineResponseJson["error"]["data"]["message"].get<std::string>();
+            }
+            throw std::runtime_error(errorMessage);
+        } else if (mineResponseJson["result"].is_null()) {
+            throw std::runtime_error("Null result in response");
+        }
+        std::string secondsHex = responseJson["result"];
+        return std::stoull(secondsHex, nullptr, 16);
+    }
 
     std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
     std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
