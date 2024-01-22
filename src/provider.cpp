@@ -220,6 +220,57 @@ std::optional<nlohmann::json> Provider::getTransactionReceipt(const std::string&
     return std::nullopt;
 }
 
+std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address) {
+    std::vector<LogEntry> logEntries;
+
+    nlohmann::json params = nlohmann::json::array();
+    nlohmann::json params_data = nlohmann::json();
+    params_data["fromBlock"] = utils::decimalToHex(fromBlock);
+    params_data["toBlock"] = utils::decimalToHex(toBlock);
+    params_data["address"] = address;
+    params.push_back(params_data);
+
+    // Make the RPC call
+    cpr::Response response = makeJsonRpcRequest("eth_getLogs", params);
+
+    if (response.status_code == 200) {
+        // Parse the response
+        nlohmann::json responseJson = nlohmann::json::parse(response.text);
+
+        if (responseJson.find("error") != responseJson.end())
+            throw std::runtime_error("Error getting logs: " + responseJson["error"]["message"].get<std::string>());
+
+        // Check if the result field is present and not null
+        if (!responseJson["result"].is_null()) {
+            for (const auto& logJson : responseJson["result"]) {
+                LogEntry logEntry;
+                logEntry.address = logJson.contains("address") ? logJson["address"].get<std::string>() : "";
+                
+                if (logJson.contains("topics")) {
+                    for (const auto& topic : logJson["topics"]) {
+                        logEntry.topics.push_back(topic.get<std::string>());
+                    }
+                }
+                
+                logEntry.data = logJson.contains("data") ? logJson["data"].get<std::string>() : "";
+                logEntry.blockNumber = logJson.contains("blockNumber") ? std::make_optional(logJson["blockNumber"].get<uint64_t>()) : std::nullopt;
+                logEntry.transactionHash = logJson.contains("transactionHash") ? std::make_optional(logJson["transactionHash"].get<std::string>()) : std::nullopt;
+                logEntry.transactionIndex = logJson.contains("transactionIndex") ? std::make_optional(logJson["transactionIndex"].get<uint32_t>()) : std::nullopt;
+                logEntry.blockHash = logJson.contains("blockHash") ? std::make_optional(logJson["blockHash"].get<std::string>()) : std::nullopt;
+                logEntry.logIndex = logJson.contains("logIndex") ? std::make_optional(logJson["logIndex"].get<uint32_t>()) : std::nullopt;
+                logEntry.removed = logJson.contains("removed") ? logJson["removed"].get<bool>() : false;
+
+                logEntries.push_back(logEntry);
+            }
+        }
+    }
+    return logEntries;
+}
+
+std::vector<LogEntry> Provider::getLogs(uint64_t block, const std::string& address) {
+    return getLogs(block, block, address);
+}
+
 // Create and send a raw transaction returns the hash but will also check that it got into the mempool
 std::string Provider::sendTransaction(const Transaction& signedTx) {
     std::string hash = sendUncheckedTransaction(signedTx);

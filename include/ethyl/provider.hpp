@@ -13,6 +13,7 @@
 #pragma GCC diagnostic pop
 
 #include "transaction.hpp"
+#include "logs.hpp"
 
 struct ReadCallData {
     std::string contractAddress;
@@ -89,6 +90,8 @@ public:
 
     std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
     std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
+    std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address);
+    std::vector<LogEntry> getLogs(uint64_t block, const std::string& address);
 
     std::string sendTransaction(const Transaction& signedTx);
     std::string sendUncheckedTransaction(const Transaction& signedTx);
