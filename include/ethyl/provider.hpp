@@ -92,6 +92,8 @@ public:
     std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
     std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address);
     std::vector<LogEntry> getLogs(uint64_t block, const std::string& address);
+    std::string getContractStorageRoot(const std::string& address, uint64_t blockNumberInt);
+    std::string getContractStorageRoot(const std::string& address, const std::string& blockNumber = "latest");
 
     std::string sendTransaction(const Transaction& signedTx);
     std::string sendUncheckedTransaction(const Transaction& signedTx);
@@ -102,6 +104,7 @@ public:
     std::string getBalance(const std::string& address);
     std::string getContractDeployedInLatestBlock();
 
+    uint64_t getLatestHeight();
     FeeData getFeeData();
 
 private:
