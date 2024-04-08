@@ -31,12 +31,25 @@
 
 #pragma once
 
-#include <boost/align/aligned_alloc.hpp>
 #include <cassert>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+
+// NOTE: std::aligned_alloc is not supported in Microsoft C Runtime library
+// because its implementation of std::free is unable to handle aligned
+// allocations of any kind. Instead, MS CRT provides _aligned_malloc (to be
+// freed with _aligned_free).
+// https://en.cppreference.com/w/cpp/memory/c/aligned_alloc
+#if defined(_MSC_VER)
+    #include <malloc.h>
+    #define CNHH_ALIGNED_ALLOC(align, size) _aligned_malloc(size, align)
+    #define CNHH_ALIGNED_FREE(ptr) _aligned_free(ptr)
+#else
+    #define CNHH_ALIGNED_ALLOC(align, size) std::aligned_alloc(align, size)
+    #define CNHH_ALIGNED_FREE(ptr) std::free(ptr)
+#endif
 
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X86) || defined(_M_X64)
 #define HAS_INTEL_HW
@@ -93,8 +106,8 @@ template <size_t MEMORY, size_t ITER, size_t VERSION>
 class cn_heavy_hash {
   public:
     cn_heavy_hash() : borrowed_pad(false) {
-        lpad.set(boost::alignment::aligned_alloc(4096, MEMORY));
-        spad.set(boost::alignment::aligned_alloc(4096, 4096));
+        lpad.set(CNHH_ALIGNED_ALLOC(4096, MEMORY));
+        spad.set(CNHH_ALIGNED_ALLOC(4096, 4096));
     }
 
     // Factory function enabling to temporaliy turn v2 object into v1
@@ -144,9 +157,9 @@ class cn_heavy_hash {
     inline void free_mem() {
         if (!borrowed_pad) {
             if (lpad.as_void() != nullptr)
-                boost::alignment::aligned_free(lpad.as_void());
+                CNHH_ALIGNED_FREE(lpad.as_void());
             if (lpad.as_void() != nullptr)
-                boost::alignment::aligned_free(spad.as_void());
+                CNHH_ALIGNED_FREE(spad.as_void());
         }
 
         lpad.set(nullptr);

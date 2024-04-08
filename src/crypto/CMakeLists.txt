@@ -52,7 +52,6 @@ add_library(cncrypto
 
 target_link_libraries(cncrypto
   PUBLIC
-    Boost::thread
     sodium
   PRIVATE
     )

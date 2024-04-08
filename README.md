@@ -5,7 +5,7 @@ C++ library for communicating with Ethereum
 
 ### Prerequisites
 ```
-apt install cmake build-essential libboost-all-dev libssl-dev libcurl4-openssl-dev libsodium-dev
+apt install cmake build-essential libssl-dev libcurl4-openssl-dev libsodium-dev
 ```
 
 ### Building from Source
