@@ -1,20 +1,23 @@
 # Ethyl
-C++ library for communicating with Ethereum
+
+C++ library for communicating with Ethereum.
 
 ## Building
 
 ### Prerequisites
+
 ```
-apt install cmake build-essential libssl-dev libcurl4-openssl-dev libsodium-dev
+apt install cmake build-essential libssl-dev libcurl4-openssl-dev
 ```
 
 ### Building from Source
 
-Clone the repository as usual, including submodules (either by passing `--recurse-submodules` to
-`git clone`, or else running `git submodule update --init --recursive` the top-level project
-directory).
+Clone the repository as usual, including submodules (either by passing
+`--recurse-submodules` to `git clone`, or else running `git submodule update
+--init --recursive` the top-level project directory).
 
-To compile the library run the following commands from the project source directory:
+To compile the library run the following commands from the project source
+directory:
 
 ```
 mkdir -p build
@@ -28,6 +31,8 @@ Various options can be added to the `cmake ..` line; some common options are:
 
 ## Testing
 
-Unit tests use [Catch2](https://github.com/catchorg/Catch2) as a formal unit-test framework. Unit
-tests are built by default as part of the standard CMake build logic (unless being built as a
-subdirectory of another CMake project) and can be invoked through the `make test` or running the test binaries build in `build/tests`.
+Unit tests use [Catch2](https://github.com/catchorg/Catch2) as a formal
+unit-test framework. Unit tests are built by default as part of the standard
+CMake build logic (unless being built as a subdirectory of another CMake
+project) and can be invoked through the `make test` or running the test binaries
+build in `build/tests`.
