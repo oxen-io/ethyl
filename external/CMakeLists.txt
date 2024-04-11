@@ -1,8 +1,14 @@
+#
+# CPR
+#
 if(NOT TARGET cpr)
     set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "")
     add_subdirectory(cpr)
 endif()
 
+#
+# SECP256k1
+#
 if(NOT TARGET secp256k1)
     set(SECP256K1_ENABLE_MODULE_RECOVERY ON CACHE BOOL "" FORCE)
     set(SECP256K1_VALGRIND OFF CACHE BOOL "" FORCE)
@@ -14,10 +20,12 @@ if(NOT TARGET secp256k1)
     add_subdirectory(secp256k1)
 endif()
 
+#
+# Catch2
+#
 if(NOT TARGET Catch2)
     add_subdirectory(Catch2)
 endif()
-
 
 #
 # rlpvalue is built using autotools
@@ -51,12 +59,18 @@ add_dependencies     (rlpvalue librlpvalue)
 set_target_properties(rlpvalue PROPERTIES IMPORTED_LOCATION ${RLP_STATIC_LIB})
 set_target_properties(rlpvalue PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${RLP_INCLUDES})
 
+#
+# nlohmann_json
+#
 if(NOT TARGET nlohmann_json)
     set(JSON_BuildTests OFF CACHE INTERNAL "")
     set(JSON_MultipleHeaders ON CACHE BOOL "") # Allows multi-header nlohmann use
     add_subdirectory(json EXCLUDE_FROM_ALL)
 endif()
 
+#
+# GMP
+#
 find_library(gmp gmp)
 if(NOT gmp)
   message(FATAL_ERROR "gmp not found")
