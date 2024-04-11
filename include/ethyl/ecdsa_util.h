@@ -52,7 +52,7 @@
 #elif defined(__linux__) || defined(__FreeBSD__)
     /* If `getrandom(2)` is not available you should fallback to /dev/urandom */
     ssize_t res = getrandom(data, size, 0);
-    if (res < 0 || static_cast<size_t>(res) != size ) {
+    if (res < 0 || (size_t)res != size ) {
         return 0;
     } else {
         return 1;
