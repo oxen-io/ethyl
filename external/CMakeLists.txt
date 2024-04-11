@@ -18,32 +18,37 @@ if(NOT TARGET Catch2)
     add_subdirectory(Catch2)
 endif()
 
-# RLPValue is built using autotools
+
+#
+# rlpvalue is built using autotools
+#
 include(ExternalProject)
-
-set(RLP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/rlpvalue)
-set(RLP_BIN ${CMAKE_CURRENT_BINARY_DIR}/librlpvalue)
-set(RLP_SHARED_LIB ${RLP_BIN}/lib/librlpvalue.so)
-set(RLP_INCLUDES ${RLP_BIN}/include)
-
+set(RLP_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/rlpvalue)
+set(RLP_BIN         ${CMAKE_CURRENT_BINARY_DIR}/librlpvalue)
+set(RLP_STATIC_LIB  ${RLP_BIN}/lib/librlpvalue.a)
+set(RLP_INCLUDES    ${RLP_BIN}/include)
 file(MAKE_DIRECTORY ${RLP_INCLUDES})
 
+# NOTE: rlpvalue includes a sub-project, univalue which it configures from the
+# top level script. Passing in the `--prefix` at the top-level does not
+# propagate down to the bottom level causing `make install` to install to the
+# system level prefix.
+#
+# We override this by specifying prefix at the last step ensuring that both
+# `rlpvalue` and `univalue` are installed to the same prefix.
 ExternalProject_Add(
     librlpvalue
-    PREFIX ${RLP_BIN}
-    SOURCE_DIR ${RLP_DIR}
-    DOWNLOAD_COMMAND cd ${RLP_DIR} && git clean -dfX && ${RLP_DIR}/autogen.sh
-    CONFIGURE_COMMAND ${RLP_DIR}/configure --srcdir=${RLP_DIR} --prefix=${RLP_BIN} --enable-shared=yes --disable-static
-    BUILD_COMMAND make
-    INSTALL_COMMAND make install
-    BUILD_BYPRODUCTS ${RLP_SHARED_LIB}
+    PREFIX            ${RLP_BIN}
+    SOURCE_DIR        ${RLP_DIR}
+    DOWNLOAD_COMMAND  cd ${RLP_DIR} && git clean -dfX
+    CONFIGURE_COMMAND bash -c ${RLP_DIR}/autogen.sh && bash -c ${RLP_DIR}/configure --srcdir=${RLP_DIR} --disable-shared --enable-static=yes
+    BUILD_COMMAND     make
+    INSTALL_COMMAND   make install prefix=${RLP_BIN}
+    BUILD_BYPRODUCTS  ${RLP_STATIC_LIB} ${RLP_BIN}/lib/libunivalue.a
 )
-
-add_library(rlpvalue SHARED IMPORTED GLOBAL)
-
-add_dependencies(rlpvalue librlpvalue)
-
-set_target_properties(rlpvalue PROPERTIES IMPORTED_LOCATION ${RLP_SHARED_LIB})
+add_library          (rlpvalue STATIC IMPORTED GLOBAL)
+add_dependencies     (rlpvalue librlpvalue)
+set_target_properties(rlpvalue PROPERTIES IMPORTED_LOCATION ${RLP_STATIC_LIB})
 set_target_properties(rlpvalue PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${RLP_INCLUDES})
 
 if(NOT TARGET nlohmann_json)
