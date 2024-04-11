@@ -42,7 +42,7 @@
 // allocations of any kind. Instead, MS CRT provides _aligned_malloc (to be
 // freed with _aligned_free).
 // https://en.cppreference.com/w/cpp/memory/c/aligned_alloc
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__MINGW64__)
     #include <malloc.h>
     #define CNHH_ALIGNED_ALLOC(align, size) _aligned_malloc(size, align)
     #define CNHH_ALIGNED_FREE(ptr) _aligned_free(ptr)
