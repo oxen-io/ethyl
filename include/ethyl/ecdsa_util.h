@@ -37,7 +37,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <stdio.h>
-#include <cstring>
+#include <string.h>
 
 
 /* Returns 1 on success, and 0 on failure. */
