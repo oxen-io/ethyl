@@ -50,6 +50,8 @@ ExternalProject_Add(
     SOURCE_DIR        ${RLP_DIR}
     DOWNLOAD_COMMAND  cd ${RLP_DIR} && git clean -dfX
     CONFIGURE_COMMAND bash -c ${RLP_DIR}/autogen.sh && bash -c ${RLP_DIR}/configure --srcdir=${RLP_DIR} --disable-shared --enable-static=yes
+    PATCH_COMMAND     git checkout -- src/InfInt.h &&
+                      git apply --ignore-whitespace ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/rlpvalue-001-infint-missing-limits-h.patch
     BUILD_COMMAND     make
     INSTALL_COMMAND   make install prefix=${RLP_BIN}
     BUILD_BYPRODUCTS  ${RLP_STATIC_LIB} ${RLP_BIN}/lib/libunivalue.a
