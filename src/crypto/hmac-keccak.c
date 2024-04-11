@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "hmac-keccak.h"
+#include "../../include/ethyl/ecdsa_util.h"
 
 #define KECCAK_BLOCKLEN 136
 #define HASH_SIZE 32
@@ -57,7 +58,7 @@ void hmac_keccak_init(hmac_keccak_state* S, const uint8_t* _key, size_t keylen) 
     }
     keccak_update(&S->outer, pad, KECCAK_BLOCKLEN);
 
-    memwipe(keyhash, HASH_SIZE);
+    secure_erase(keyhash, HASH_SIZE);
 }
 
 void hmac_keccak_update(hmac_keccak_state* S, const uint8_t* data, size_t datalen) {
@@ -69,7 +70,7 @@ void hmac_keccak_finish(hmac_keccak_state* S, uint8_t* digest) {
     keccak_finish(&S->inner, ihash);
     keccak_update(&S->outer, ihash, HASH_SIZE);
     keccak_finish(&S->outer, digest);
-    memwipe(ihash, HASH_SIZE);
+    secure_erase(ihash, HASH_SIZE);
 }
 
 void hmac_keccak_hash(
