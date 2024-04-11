@@ -1,5 +1,5 @@
 if(NOT TARGET cpr)
-    set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "" FORCE)
+    set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "")
     add_subdirectory(cpr)
 endif()
 
