@@ -2,7 +2,7 @@
 // before actually calling any AES code, and otherwise fall back to more portable code.
 
 #include <emmintrin.h>
-#if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__CYGWIN__)
 #  include <intrin.h>
 #  include <windows.h>
 #else
@@ -282,7 +282,7 @@ STATIC INLINE void aes_pseudo_round_xor(const uint8_t *in, uint8_t *out,
     }
 }
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__CYGWIN__)
 BOOL SetLockPagesPrivilege(HANDLE hProcess, BOOL bEnable)
 {
   struct
@@ -330,7 +330,7 @@ void slow_hash_allocate_state(uint32_t page_size)
     if(hp_state != NULL)
         return;
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__CYGWIN__)
     SetLockPagesPrivilege(GetCurrentProcess(), TRUE);
     hp_state = (uint8_t *) VirtualAlloc(hp_state, page_size, MEM_LARGE_PAGES |
                                         MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -367,7 +367,7 @@ void slow_hash_free_state(uint32_t page_size)
         free(hp_state);
     else
     {
-#if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__CYGWIN__)
         VirtualFree(hp_state, 0, MEM_RELEASE);
 #else
         munmap(hp_state, page_size);
