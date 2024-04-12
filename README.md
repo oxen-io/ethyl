@@ -18,7 +18,7 @@ apt install cmake build-essential libssl-dev libcurl4-openssl-dev
 
 # Build
 cmake -B build -S .
-cmake --build build/msys --parallel --verbose
+cmake --build build --parallel --verbose
 ```
 
 **Windows via MSYS2 (MinGW, UCRT64, e.t.c)**
