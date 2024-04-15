@@ -50,12 +50,9 @@ add_library(cncrypto
   cn_turtle_hash.c
   tree-hash.c)
 
-target_link_libraries(cncrypto
-  PUBLIC
-    Boost::thread
-    sodium
-  PRIVATE
-    )
+if (WIN32 OR CYGWIN)
+    target_link_libraries(cncrypto PUBLIC bcrypt)
+endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")

@@ -16,7 +16,7 @@
  * Windows -> `BCryptGenRandom`(`bcrypt.h`). https://docs.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptgenrandom
  */
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__CYGWIN__)
 /*
  * The defined WIN32_NO_STATUS macro disables return code definitions in
  * windows.h, which avoids "macro redefinition" MSVC warnings in ntstatus.h.
@@ -37,13 +37,13 @@
 #include <stddef.h>
 #include <limits.h>
 #include <stdio.h>
-#include <cstring>
+#include <string.h>
 
 
 /* Returns 1 on success, and 0 on failure. */
 [[maybe_unused]] static int fill_random(unsigned char* data, size_t size) {
-#if defined(_WIN32)
-    NTSTATUS res = BCryptGenRandom(NULL, data, size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+#if defined(_WIN32) || defined(__CYGWIN__)
+    NTSTATUS res = BCryptGenRandom(NULL, data, (ULONG)size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     if (res != STATUS_SUCCESS || size > ULONG_MAX) {
         return 0;
     } else {
@@ -52,7 +52,7 @@
 #elif defined(__linux__) || defined(__FreeBSD__)
     /* If `getrandom(2)` is not available you should fallback to /dev/urandom */
     ssize_t res = getrandom(data, size, 0);
-    if (res < 0 || static_cast<size_t>(res) != size ) {
+    if (res < 0 || (size_t)res != size ) {
         return 0;
     } else {
         return 1;
@@ -79,13 +79,13 @@
     printf("\n");
 }
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__CYGWIN__)
 // For SecureZeroMemory
 #include <Windows.h>
 #endif
 /* Cleanses memory to prevent leaking sensitive info. Won't be optimized out. */
 [[maybe_unused]] static void secure_erase(void *ptr, size_t len) {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__CYGWIN__)
     /* SecureZeroMemory is guaranteed not to be optimized out by MSVC. */
     SecureZeroMemory(ptr, len);
 #elif defined(__GNUC__)

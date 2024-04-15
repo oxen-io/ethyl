@@ -1,26 +1,40 @@
 # Ethyl
-C++ library for communicating with Ethereum
+
+C++ library for communicating with Ethereum.
 
 ## Building
 
-### Prerequisites
-```
-apt install cmake build-essential libboost-all-dev libssl-dev libcurl4-openssl-dev libsodium-dev
-```
+Clone the repository `git clone --recursive` or if already cloned, `git
+submodule update --init --recursive` at the root to ensure all source code is
+retrieved.
 
-### Building from Source
+Then run the following commands from the root of this repository:
 
-Clone the repository as usual, including submodules (either by passing `--recurse-submodules` to
-`git clone`, or else running `git submodule update --init --recursive` the top-level project
-directory).
-
-To compile the library run the following commands from the project source directory:
+**Linux**
 
 ```
-mkdir -p build
-cd build
-cmake ..
-make -j8  # Tweak as needed for the desired build parallelism
+# Install dependencies
+apt install cmake build-essential libssl-dev libcurl4-openssl-dev
+
+# Build
+cmake -B build -S .
+cmake --build build --parallel --verbose
+```
+
+**Windows via MSYS2 (MinGW, UCRT64, e.t.c)**
+
+```
+# Update pacman and install dependencies
+pacman -Syuu # Terminal may prompt to restart before proceeding
+pacman -S git base-devel libargp-devel cmake gcc libcurl-devel gmp-devel autoconf automake libtool
+
+# MSYS packages libargp with a .dll suffix which breaks rlpvalue's autotool
+# script so we patch it up
+ln -s /usr/lib/libargp.dll.a /usr/lib/libargp.a
+
+# Build
+cmake -B build -S .
+cmake --build build --parallel --verbose
 ```
 
 Various options can be added to the `cmake ..` line; some common options are:
@@ -28,6 +42,8 @@ Various options can be added to the `cmake ..` line; some common options are:
 
 ## Testing
 
-Unit tests use [Catch2](https://github.com/catchorg/Catch2) as a formal unit-test framework. Unit
-tests are built by default as part of the standard CMake build logic (unless being built as a
-subdirectory of another CMake project) and can be invoked through the `make test` or running the test binaries build in `build/tests`.
+Unit tests use [Catch2](https://github.com/catchorg/Catch2) as a formal
+unit-test framework. Unit tests are built by default as part of the standard
+CMake build logic (unless being built as a subdirectory of another CMake
+project) and can be invoked through the `make test` or running the test binaries
+build in `build/tests`.
