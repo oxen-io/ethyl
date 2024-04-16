@@ -60,7 +60,7 @@ std::pair<std::vector<unsigned char>, std::vector<unsigned char>> Signer::genera
             std::vector<unsigned char>(compressed_pubkey, compressed_pubkey + sizeof(compressed_pubkey))};
 }
 
-std::string Signer::addressFromPrivateKey(const std::vector<unsigned char>& seckey) {
+std::array<unsigned char, 20> Signer::secretKeyToAddress(const std::vector<unsigned char>& seckey) {
     std::string address;
 
     // Verify the private key.
@@ -84,10 +84,18 @@ std::string Signer::addressFromPrivateKey(const std::vector<unsigned char>& seck
     auto hashed_pub = utils::hash(pub_string);
 
     // The last 20 bytes of the Keccak-256 hash of the public key in hex is the address.
-    address = utils::toHexString(hashed_pub);
-    address = address.substr(address.size() - 40);
+    std::array<unsigned char, 20> result = {};
+    std::memcpy(result.data(), hashed_pub.data() + hashed_pub.size() - result.size(), result.size());
+    return result;
+}
 
-    return "0x" + address;
+std::string Signer::secretKeyToAddressString(const std::vector<unsigned char>& seckey) {
+    std::array<unsigned char, 20> address = secretKeyToAddress(seckey);
+    std::string                   result  = {};
+    result.reserve(2 + (address.max_size() * 2));
+    result += "0x";
+    result += utils::toHexString(address);
+    return result;
 }
 
 
@@ -173,7 +181,7 @@ std::string Signer::signTransaction(Transaction& txn, const std::vector<unsigned
 
 // Populates the txn, signs and sends
 std::string Signer::sendTransaction(Transaction& txn, const std::vector<unsigned char>& seckey) {
-    const auto senders_address = addressFromPrivateKey(seckey);
+    const auto senders_address = secretKeyToAddressString(seckey);
 
     populateTransaction(txn, senders_address);
     const auto signature_hex = utils::toHexString(sign(txn.hash(), seckey));

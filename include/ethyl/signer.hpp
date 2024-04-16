@@ -24,7 +24,8 @@ public:
 
     // Returns <Pubkey, Seckey>
     std::pair<std::vector<unsigned char>, std::vector<unsigned char>> generate_key_pair();
-    std::string addressFromPrivateKey(const std::vector<unsigned char>& seckey);
+    std::array<unsigned char, 20>                                     secretKeyToAddress(const std::vector<unsigned char>& seckey);
+    std::string                                                       secretKeyToAddressString(const std::vector<unsigned char>& seckey);
 
     std::vector<unsigned char> sign(const std::array<unsigned char, 32>& hash, const std::vector<unsigned char>& seckey);
     std::vector<unsigned char> sign(const std::string& hash, const std::vector<unsigned char>& seckey);
