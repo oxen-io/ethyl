@@ -66,7 +66,13 @@ nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std:
         }
     }
 
-    throw std::runtime_error("Unable to get the result of the function call");
+    std::stringstream stream;
+    stream << "'eth_call' invoked on node for block '" << blockNumber
+           << "' to '" << callData.contractAddress
+           << "' with data payload '" << callData.data
+           << "' however it returned a response that does not have a result: "
+           << response.text;
+    throw std::runtime_error(stream.str());
 }
 
 std::string Provider::callReadFunction(const ReadCallData& callData, std::string_view blockNumber) {
