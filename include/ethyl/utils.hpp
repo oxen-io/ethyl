@@ -34,12 +34,13 @@ namespace utils
         return oss.str();
     }
 
-    std::string decimalToHex(uint64_t decimal);
+    std::string      decimalToHex(uint64_t decimal);
+    std::string_view trimPrefix(std::string_view src, std::string_view prefix);
+    std::string_view trimLeadingZeros(std::string_view src);
 
-    std::vector<unsigned char> fromHexString(std::string hex_str);
-    uint64_t fromHexStringToUint64(std::string hex_str);
-
-    std::array<unsigned char, 32> fromHexString32Byte(std::string hex_str);
+    std::vector<unsigned char>    fromHexString(std::string_view hexStr);
+    uint64_t                      fromHexStringToUint64(std::string_view hexStr);
+    std::array<unsigned char, 32> fromHexString32Byte(std::string_view hexStr);
 
     std::array<unsigned char, 32> hash(std::string in);
 
