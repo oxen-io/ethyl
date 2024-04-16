@@ -81,7 +81,7 @@ std::string utils::getFunctionSignature(const std::string& function) {
     return "0x" + hashHex.substr(0, 8);
 }
 
-std::string utils::padToNBytes(const std::string& input, size_t byte_count, utils::PaddingDirection direction) {
+std::string utils::padToNBytes(const std::string& input, size_t byteCount, utils::PaddingDirection direction) {
     std::string output = input;
     bool has0xPrefix = false;
 
@@ -92,20 +92,21 @@ std::string utils::padToNBytes(const std::string& input, size_t byte_count, util
     }
 
     // Calculate padding size based on byteCount * 2 (since each byte is represented by 2 hex characters)
-    size_t targetHexStringSize = byte_count * 2;
-    size_t nextMultiple = (output.size() + targetHexStringSize - 1) / targetHexStringSize * targetHexStringSize;
-    size_t paddingSize = nextMultiple - output.size();
-    std::string padding(paddingSize, '0');
+    const size_t targetHexStringSize   = byteCount * 2;
+    const size_t startingSize          = std::max(output.size(), static_cast<size_t>(1)); // Size is atleast 1 element such that we handle when output.size == 0
+    const size_t startingSizeRoundedUp = startingSize + (targetHexStringSize - 1);
+    const size_t nextMultiple          = /*floor*/ (startingSizeRoundedUp / targetHexStringSize) * targetHexStringSize;
+    const size_t paddingSize           = nextMultiple - output.size();
 
     if (direction == PaddingDirection::LEFT) {
-        output = padding + output;
+        output.insert(0, paddingSize, '0');
     } else {
-        output += padding;
+        output.append(paddingSize, '0');
     }
 
     // If input started with "0x", add it back
     if (has0xPrefix) {
-        output = "0x" + output;
+        output.insert(0, "0x");
     }
 
     return output;

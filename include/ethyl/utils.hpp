@@ -45,7 +45,7 @@ namespace utils
 
     std::string getFunctionSignature(const std::string& function);
 
-    std::string padToNBytes(const std::string& input, size_t byte_count, PaddingDirection direction = PaddingDirection::LEFT);
+    std::string padToNBytes(const std::string& input, size_t byteCount, PaddingDirection direction = PaddingDirection::LEFT);
     std::string padTo8Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
     std::string padTo32Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
 
