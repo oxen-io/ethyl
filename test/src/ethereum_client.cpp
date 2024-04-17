@@ -38,7 +38,7 @@ TEST_CASE( "SigningTest", "[signer]" ) {
 TEST_CASE( "Get address from private key", "[signer]" ) {
     std::vector<unsigned char> seckey = utils::fromHexString(std::string(PRIVATE_KEY));
     Signer signer;
-    std::string created_address = signer.addressFromPrivateKey(seckey);
+    std::string created_address = signer.secretKeyToAddressString(seckey);
     REQUIRE( created_address == ADDRESS );
 }
 
