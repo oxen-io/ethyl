@@ -15,19 +15,25 @@ std::string utils::decimalToHex(uint64_t decimal) {
     return ss.str();
 }
 
-std::vector<unsigned char> utils::fromHexString(std::string hex_str) {
-    std::vector<unsigned char> bytes;
+std::vector<unsigned char> utils::fromHexString(const std::string& hex_str) {
+    size_t offset = 0;
+    std::string cleaned_hex;
 
-    // Check for "0x" prefix and remove it
-    if(hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
-        hex_str = hex_str.substr(2);
+    // Check for "0x" prefix and adjust the starting point
+    if (hex_str.size() >= 2 && hex_str.substr(0, 2) == "0x") {
+        offset = 2;
     }
 
-    for (unsigned int i = 0; i < hex_str.length(); i += 2) {
-        std::string byteString = hex_str.substr(i, 2);
-        //if (byteString[0] == 0) byteString[0] = '0';
-        //if (byteString[1] == 0) byteString[1] = '0';
-        unsigned char byte = static_cast<unsigned char>(strtol(byteString.c_str(), nullptr, 16));
+    cleaned_hex = hex_str.substr(offset);
+    if (cleaned_hex.length() % 2 != 0) {
+        throw std::invalid_argument("Hex string must have an even length");
+    }
+
+    std::vector<unsigned char> bytes;
+    bytes.reserve(cleaned_hex.length() / 2);
+
+    for (size_t i = 0; i < cleaned_hex.length(); i += 2) {
+        unsigned char byte = static_cast<unsigned char>(std::stoul(cleaned_hex.substr(i, 2), nullptr, 16));
         bytes.push_back(byte);
     }
 
