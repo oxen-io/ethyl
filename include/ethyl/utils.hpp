@@ -34,18 +34,19 @@ namespace utils
         return oss.str();
     }
 
-    std::string decimalToHex(uint64_t decimal);
+    std::string      decimalToHex(uint64_t decimal);
+    std::string_view trimPrefix(std::string_view src, std::string_view prefix);
+    std::string_view trimLeadingZeros(std::string_view src);
 
-    std::vector<unsigned char> fromHexString(std::string hex_str);
-    uint64_t fromHexStringToUint64(std::string hex_str);
-
-    std::array<unsigned char, 32> fromHexString32Byte(std::string hex_str);
+    std::vector<unsigned char>    fromHexString(std::string_view hexStr);
+    uint64_t                      fromHexStringToUint64(std::string_view hexStr);
+    std::array<unsigned char, 32> fromHexString32Byte(std::string_view hexStr);
 
     std::array<unsigned char, 32> hash(std::string in);
 
     std::string getFunctionSignature(const std::string& function);
 
-    std::string padToNBytes(const std::string& input, size_t byte_count, PaddingDirection direction = PaddingDirection::LEFT);
+    std::string padToNBytes(const std::string& input, size_t byteCount, PaddingDirection direction = PaddingDirection::LEFT);
     std::string padTo8Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
     std::string padTo32Bytes(const std::string& input, PaddingDirection direction = PaddingDirection::LEFT);
 

@@ -4,6 +4,7 @@
 #include <string>
 #include <cstdlib>
 #include <ctime>
+#include <cassert>
 
 extern "C" {
 #include "crypto/keccak.h"
@@ -15,37 +16,86 @@ std::string utils::decimalToHex(uint64_t decimal) {
     return ss.str();
 }
 
-std::vector<unsigned char> utils::fromHexString(std::string hex_str) {
-    std::vector<unsigned char> bytes;
-
-    // Check for "0x" prefix and remove it
-    if(hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
-        hex_str = hex_str.substr(2);
+std::string_view utils::trimPrefix(std::string_view src, std::string_view prefix)
+{
+    std::string_view result = src;
+    if (result.size() >= prefix.size()) {
+        if (result.substr(0, prefix.size()) == prefix) {
+            result = result.substr(prefix.size(), result.size() - prefix.size());
+        }
     }
-
-    for (unsigned int i = 0; i < hex_str.length(); i += 2) {
-        std::string byteString = hex_str.substr(i, 2);
-        //if (byteString[0] == 0) byteString[0] = '0';
-        //if (byteString[1] == 0) byteString[1] = '0';
-        unsigned char byte = static_cast<unsigned char>(strtol(byteString.c_str(), nullptr, 16));
-        bytes.push_back(byte);
-    }
-
-    return bytes;
+    return result;
 }
 
-uint64_t utils::fromHexStringToUint64(std::string hex_str) {
-    // Check for "0x" prefix and remove it
-    if(hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
-        hex_str = hex_str.substr(2);
+std::string_view utils::trimLeadingZeros(std::string_view src)
+{
+    std::string_view result = src;
+    while (result.size() && result[0] == '0') {
+        result = result.substr(1, result.size() - 1);
     }
-
-    uint64_t value = std::stoull(hex_str, nullptr, 16);
-    return value;
+    return result;
 }
 
-std::array<unsigned char, 32> utils::fromHexString32Byte(std::string hex_str) {
-    std::vector<unsigned char> bytesVec = fromHexString(hex_str);
+struct HexToU8Result {
+    bool    success;
+    uint8_t u8;
+};
+
+static HexToU8Result hexToU8(char ch) {
+    HexToU8Result result = {};
+    result.success       = true;
+
+    if (ch >= 'a' && ch <= 'f')
+        result.u8 = static_cast<uint8_t>(ch - 'a' + 10);
+    else if (ch >= 'A' && ch <= 'F')
+        result.u8 = static_cast<uint8_t>(ch - 'A' + 10);
+    else if (ch >= '0' && ch <= '9')
+        result.u8 = static_cast<uint8_t>(ch - '0');
+    else
+        result.success = false;
+
+    return result;
+}
+
+std::vector<unsigned char> utils::fromHexString(std::string_view hexStr) {
+    hexStr = trimPrefix(hexStr, "0x");
+    assert(hexStr.size() % 2 == 0);
+
+    std::vector<unsigned char> result;
+    for (size_t i = 0; i < hexStr.length(); i += 2) {
+        std::string_view byteString = hexStr.substr(i, 2);
+        HexToU8Result    hi         = hexToU8(byteString[0]);
+        HexToU8Result    lo         = hexToU8(byteString[1]);
+        unsigned char    byte       = static_cast<unsigned char>(hi.u8 << 4 | lo.u8 << 0);
+        result.push_back(byte);
+    }
+    return result;
+}
+
+uint64_t utils::fromHexStringToUint64(std::string_view hexStr) {
+    std::string_view realHex = trimPrefix(hexStr, "0x");
+
+    // NOTE: Trim leading '0's
+    while (realHex.size() && realHex[0] == '0') {
+        realHex = realHex.substr(1, realHex.size() - 1);
+    }
+
+    size_t maxHexSize = sizeof(uint64_t) * 2 /*hex chars per byte*/;
+    assert(realHex.size() <= maxHexSize);
+
+    size_t   size   = std::min(maxHexSize, realHex.size());
+    uint64_t result = 0;
+    for (size_t index = 0; index < size; index++) {
+        char          ch        = realHex[index];
+        HexToU8Result hexResult = hexToU8(ch);
+        assert(hexResult.success);
+        result = (result << 4) | hexResult.u8;
+    }
+    return result;
+}
+
+std::array<unsigned char, 32> utils::fromHexString32Byte(std::string_view hexStr) {
+    std::vector<unsigned char> bytesVec = fromHexString(hexStr);
 
     if(bytesVec.size() != 32) {
         throw std::invalid_argument("Input string length should be 64 characters for 32 bytes");
@@ -81,7 +131,7 @@ std::string utils::getFunctionSignature(const std::string& function) {
     return "0x" + hashHex.substr(0, 8);
 }
 
-std::string utils::padToNBytes(const std::string& input, size_t byte_count, utils::PaddingDirection direction) {
+std::string utils::padToNBytes(const std::string& input, size_t byteCount, utils::PaddingDirection direction) {
     std::string output = input;
     bool has0xPrefix = false;
 
@@ -92,20 +142,21 @@ std::string utils::padToNBytes(const std::string& input, size_t byte_count, util
     }
 
     // Calculate padding size based on byteCount * 2 (since each byte is represented by 2 hex characters)
-    size_t targetHexStringSize = byte_count * 2;
-    size_t nextMultiple = (output.size() + targetHexStringSize - 1) / targetHexStringSize * targetHexStringSize;
-    size_t paddingSize = nextMultiple - output.size();
-    std::string padding(paddingSize, '0');
+    const size_t targetHexStringSize   = byteCount * 2;
+    const size_t startingSize          = std::max(output.size(), static_cast<size_t>(1)); // Size is atleast 1 element such that we handle when output.size == 0
+    const size_t startingSizeRoundedUp = startingSize + (targetHexStringSize - 1);
+    const size_t nextMultiple          = /*floor*/ (startingSizeRoundedUp / targetHexStringSize) * targetHexStringSize;
+    const size_t paddingSize           = nextMultiple - output.size();
 
     if (direction == PaddingDirection::LEFT) {
-        output = padding + output;
+        output.insert(0, paddingSize, '0');
     } else {
-        output += padding;
+        output.append(paddingSize, '0');
     }
 
     // If input started with "0x", add it back
     if (has0xPrefix) {
-        output = "0x" + output;
+        output.insert(0, "0x");
     }
 
     return output;

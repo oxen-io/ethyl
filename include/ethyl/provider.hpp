@@ -2,6 +2,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <optional>
 #include <chrono>
 
@@ -38,9 +39,10 @@ public:
     void connectToNetwork();
     void disconnectFromNetwork();
 
-    uint64_t getTransactionCount(const std::string& address, const std::string& blockTag);
-    std::string callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
-    std::string callReadFunction(const ReadCallData& callData, const std::string& blockNumber = "latest");
+    uint64_t       getTransactionCount(const std::string& address, const std::string& blockTag);
+    nlohmann::json callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber = "latest");
+    std::string    callReadFunction(const ReadCallData& callData, std::string_view blockNumber = "latest");
+    std::string    callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
 
     uint32_t getNetworkChainId();
     std::string evm_snapshot();

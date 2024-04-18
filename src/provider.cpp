@@ -48,30 +48,44 @@ cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nloh
     return session.Post();
 }
 
-std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt) {
-    std::stringstream stream;
-    stream << "0x" << std::hex << blockNumberInt;  // Convert uint64_t to hex string
-    std::string blockNumberHex = stream.str();
-    
-    return callReadFunction(callData, blockNumberHex);  // Call the original function
-}
+nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber) {
+    nlohmann::json result = {};
 
-std::string Provider::callReadFunction(const ReadCallData& callData, const std::string& blockNumber) {
     // Prepare the params for the eth_call request
-    nlohmann::json params = nlohmann::json::array();
-    params[0]["to"] = callData.contractAddress;
-    params[0]["data"] = callData.data;
-    params[1] = blockNumber; // use the provided block number or default to "latest"
+    nlohmann::json params  = nlohmann::json::array();
+    params[0]["to"]        = callData.contractAddress;
+    params[0]["data"]      = callData.data;
+    params[1]              = blockNumber; // use the provided block number or default to "latest"
     cpr::Response response = makeJsonRpcRequest("eth_call", params);
 
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
         if (!responseJson["result"].is_null()) {
-            return responseJson["result"];
+            result = responseJson["result"];
+            return result;
         }
     }
 
-    throw std::runtime_error("Unable to get the result of the function call");
+    std::stringstream stream;
+    stream << "'eth_call' invoked on node for block '" << blockNumber
+           << "' to '" << callData.contractAddress
+           << "' with data payload '" << callData.data
+           << "' however it returned a response that does not have a result: "
+           << response.text;
+    throw std::runtime_error(stream.str());
+}
+
+std::string Provider::callReadFunction(const ReadCallData& callData, std::string_view blockNumber) {
+    std::string result = callReadFunctionJSON(callData, blockNumber);
+    return result;
+}
+
+std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt) {
+    std::stringstream stream;
+    stream << "0x" << std::hex << blockNumberInt; // Convert uint64_t to hex string
+    std::string blockNumberHex = stream.str();
+    std::string result         = callReadFunctionJSON(callData, blockNumberHex);
+    return result;
 }
 
 uint32_t Provider::getNetworkChainId() {
