@@ -5,53 +5,40 @@
 #include <iostream>
 #include <exception>
 
-/**
- * Serialize the transaction into a hexadecimal string using RLP encoding.
- * This function handles both signed and unsigned transactions.
- *
- * Throws: std::runtime_error on failure to process any transaction component. 
- * Returns the raw Bytes of the EIP-1559 transaction, in order.
- *
- * Format: `[chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data,
- * accessList, signatureYParity, signatureR, signatureS]`
- *
- * For an unsigned tx this method uses the empty Bytes values for the
- * signature parameters `v`, `r` and `s` for encoding.
- */
+// Optimized helper function to append data to the RLP array
+// Declared inline to hint to the compiler that it should avoid function call overhead by integrating the function's body at each call site.
+inline void appendDataToRLP(RLPValue& arr, const auto& value, auto convertFunction) {
+    RLPValue temp_val;
+    temp_val.assign(convertFunction(value));
+    arr.push_back(temp_val);
+}
+
 std::string Transaction::serialized() const {
     try {
         RLPValue arr(RLPValue::VARR);
         arr.setArray();
+        arr.reserve(11);  // Pre-allocate memory for known number of elements without signature
 
-        // Helper lambda for repetitive operations to convert and append data
-        auto appendSerializedData = [&](const auto& data, auto conversionFunction) {
-            RLPValue temp_val;
-            try {
-                temp_val.assign(conversionFunction(data));
-                arr.push_back(temp_val);
-            } catch (const std::exception& e) {
-                throw std::runtime_error("Error converting transaction data: " + std::string(e.what()));
-            }
-        };
+        // Serialize transaction data using the optimized helper function
+        appendDataToRLP(arr, chainId, utils::intToBytes);
+        appendDataToRLP(arr, nonce, utils::intToBytes);
+        appendDataToRLP(arr, maxPriorityFeePerGas, utils::intToBytes);
+        appendDataToRLP(arr, maxFeePerGas, utils::intToBytes);
+        appendDataToRLP(arr, gasLimit, utils::intToBytes);
+        appendDataToRLP(arr, to, utils::fromHexString);
+        appendDataToRLP(arr, value, utils::intToBytes);
+        appendDataToRLP(arr, this->data, utils::fromHexString);  // Explicitly use member variable
 
-        appendSerializedData(chainId, utils::intToBytes);
-        appendSerializedData(nonce, utils::intToBytes);
-        appendSerializedData(maxPriorityFeePerGas, utils::intToBytes);
-        appendSerializedData(maxFeePerGas, utils::intToBytes);
-        appendSerializedData(gasLimit, utils::intToBytes);
-        appendSerializedData(to, utils::fromHexString);
-        appendSerializedData(value, utils::intToBytes);
-        appendSerializedData(data, utils::fromHexString);
-
-        // Handle the access list, currently empty
+        // Handle the access list, which is empty in this implementation
         RLPValue access_list(RLPValue::VARR);
         access_list.setArray();
         arr.push_back(access_list);
 
         if (!sig.isEmpty()) {
-            appendSerializedData(sig.signatureYParity, utils::intToBytes);
-            appendSerializedData(sig.signatureR, utils::removeLeadingZeros);
-            appendSerializedData(sig.signatureS, utils::removeLeadingZeros);
+            arr.reserve(14);  // Adjust the reservation to include signature elements
+            appendDataToRLP(arr, sig.signatureYParity, utils::intToBytes);
+            appendDataToRLP(arr, sig.signatureR, utils::removeLeadingZeros);
+            appendDataToRLP(arr, sig.signatureS, utils::removeLeadingZeros);
         }
 
         return "0x02" + utils::toHexString(arr.write());
@@ -67,36 +54,18 @@ std::string Transaction::hash() const {
 
 bool Signature::isEmpty() const {
     return signatureYParity == 0 && signatureR.empty() && signatureS.empty();
-};
+}
 
-/**
- * Parses a signature from a hexadecimal string.
- * The string should be exactly 130 characters long after removing the "0x" prefix.
- *
- * Parameters:
- *   - hex_str: Hexadecimal string containing the signature.
- *
- * Throws: std::invalid_argument if the input format is incorrect.
- * Throws: std::runtime_error on parsing errors.
- */
 void Signature::fromHex(std::string hex_str) {
-    if (hex_str.size() >= 2 && hex_str.substr(0, 2) == "0x") {
+    if (hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
         hex_str = hex_str.substr(2);
     }
 
     if (hex_str.size() != 130) {
-        throw std::invalid_argument("Input string length should be 130 characters for 65 bytes (found " + std::to_string(hex_str.size()) + ")");
+        throw std::invalid_argument("Input string length should be 130 characters for 65 bytes");
     }
 
-    try {
-        std::string r_str = hex_str.substr(0, 64);
-        std::string s_str = hex_str.substr(64, 64);
-        std::string y_parity_str = hex_str.substr(128, 2);
-
-        signatureR = utils::fromHexString(r_str);
-        signatureS = utils::fromHexString(s_str);
-        signatureYParity = std::stoull(y_parity_str, nullptr, 16);
-    } catch (const std::exception& e) {
-        throw std::runtime_error("Error parsing hex string for signature: " + std::string(e.what()));
-    }
+    signatureR = utils::fromHexString(hex_str.substr(0, 64));
+    signatureS = utils::fromHexString(hex_str.substr(64, 64));
+    signatureYParity = std::stoull(hex_str.substr(128, 2), nullptr, 16);
 }
