@@ -21,6 +21,16 @@ jobs:
     - name: Install prerequisites
       run: sudo apt-get update && sudo apt-get install -y cmake build-essential libboost-all-dev libssl-dev libcurl4-openssl-dev libsodium-dev
 
+    - name: Install Foundry
+      run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          /home/runner/.config/.foundry/bin/foundryup
+
+    - name: Start node in background
+      run: |
+        /home/runner/.config/.foundry/bin/anvil &
+        echo "NODE_PID=$!" >> $GITHUB_ENV
+
     - name: Create Build Directory
       run: mkdir -p build
 
@@ -32,4 +42,8 @@ jobs:
 
     - name: Run tests
       run: ctest -VV --repeat until-pass:2 --test-dir build
+
+    - name: Kill node
+      run: kill $NODE_PID
+      if: always()
 
