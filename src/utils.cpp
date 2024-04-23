@@ -62,6 +62,7 @@ std::vector<unsigned char> utils::fromHexString(std::string_view hexStr) {
     assert(hexStr.size() % 2 == 0);
 
     std::vector<unsigned char> result;
+    result.reserve(hexStr.length() / 2);
     for (size_t i = 0; i < hexStr.length(); i += 2) {
         std::string_view byteString = hexStr.substr(i, 2);
         HexToU8Result    hi         = hexToU8(byteString[0]);
