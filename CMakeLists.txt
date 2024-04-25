@@ -103,13 +103,13 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
     cpr::cpr
-    cncrypto
     secp256k1
-    rlpvalue
     nlohmann_json::nlohmann_json
+  PRIVATE
+    cncrypto
+    rlpvalue
     gmp
     gmpxx
-  PRIVATE
 )
 
 verbose_message("Successfully added all dependencies and linked against them.")
