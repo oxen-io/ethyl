@@ -79,10 +79,6 @@
     printf("\n");
 }
 
-#if defined(_MSC_VER) || defined(__CYGWIN__)
-// For SecureZeroMemory
-#include <Windows.h>
-#endif
 /* Cleanses memory to prevent leaking sensitive info. Won't be optimized out. */
 [[maybe_unused]] static void secure_erase(void *ptr, size_t len) {
 #if defined(_MSC_VER) || defined(__CYGWIN__)
