@@ -2,6 +2,9 @@
 #include <iostream>
 #include <thread>
 
+#include <nlohmann/json.hpp>
+#include <cpr/cpr.h>
+
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"
 
@@ -142,6 +145,43 @@ bool Provider::evm_revert(const std::string& snapshotId) {
 
     throw std::runtime_error("Unable to revert to snapshot");
 }
+
+uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
+    nlohmann::json params = nlohmann::json::array();
+    params.push_back(seconds.count());
+
+    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
+    if (response.status_code != 200) {
+        throw std::runtime_error("Unable to set time");
+    }
+    nlohmann::json responseJson = nlohmann::json::parse(response.text);
+    if (!responseJson.contains("result") && responseJson.contains("error")) {
+        std::string errorMessage = "JSON RPC error: (evm_increaseTime)" + responseJson["error"]["message"].get<std::string>();
+        if (responseJson["error"].contains("data") && responseJson["error"]["data"].contains("message")) {
+            errorMessage += " - " + responseJson["error"]["data"]["message"].get<std::string>();
+        }
+        throw std::runtime_error(errorMessage);
+    } else if (responseJson["result"].is_null()) {
+        throw std::runtime_error("Null result in response");
+    }
+    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
+    if (response.status_code != 200) {
+        throw std::runtime_error("Unable to set time");
+    }
+    nlohmann::json mineResponseJson = nlohmann::json::parse(response.text);
+    if (!mineResponseJson.contains("result") && mineResponseJson.contains("error")) {
+        std::string errorMessage = "JSON RPC error (evm_mine): " + mineResponseJson["error"]["message"].get<std::string>();
+        if (mineResponseJson["error"].contains("data") && mineResponseJson["error"]["data"].contains("message")) {
+            errorMessage += " - " + mineResponseJson["error"]["data"]["message"].get<std::string>();
+        }
+        throw std::runtime_error(errorMessage);
+    } else if (mineResponseJson["result"].is_null()) {
+        throw std::runtime_error("Null result in response");
+    }
+    std::string secondsHex = responseJson["result"];
+    return std::stoull(secondsHex, nullptr, 16);
+}
+
 
 uint64_t Provider::getTransactionCount(const std::string& address, const std::string& blockTag) {
     nlohmann::json params = nlohmann::json::array();
