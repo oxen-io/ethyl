@@ -7,7 +7,8 @@
 
 // Optimized helper function to append data to the RLP array
 // Declared inline to hint to the compiler that it should avoid function call overhead by integrating the function's body at each call site.
-inline void appendDataToRLP(RLPValue& arr, const auto& value, auto convertFunction) {
+template<typename T, typename Converter>
+inline void appendDataToRLP(RLPValue& arr, const T& value, Converter convertFunction) {
     RLPValue temp_val;
     temp_val.assign(convertFunction(value));
     arr.push_back(temp_val);
@@ -17,7 +18,6 @@ std::string Transaction::serialized() const {
     try {
         RLPValue arr(RLPValue::VARR);
         arr.setArray();
-        arr.reserve(11);  // Pre-allocate memory for known number of elements without signature
 
         // Serialize transaction data using the optimized helper function
         appendDataToRLP(arr, chainId, utils::intToBytes);
@@ -35,7 +35,6 @@ std::string Transaction::serialized() const {
         arr.push_back(access_list);
 
         if (!sig.isEmpty()) {
-            arr.reserve(14);  // Adjust the reservation to include signature elements
             appendDataToRLP(arr, sig.signatureYParity, utils::intToBytes);
             appendDataToRLP(arr, sig.signatureR, utils::removeLeadingZeros);
             appendDataToRLP(arr, sig.signatureS, utils::removeLeadingZeros);
