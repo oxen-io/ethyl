@@ -3,52 +3,48 @@
 
 #include <rlpvalue.h>
 #include <iostream>
+#include <exception>
 
-/**
-* Returns the raw Bytes of the EIP-1559 transaction, in order.
-*
-* Format: `[chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data,
-* accessList, signatureYParity, signatureR, signatureS]`
-*
-* For an unsigned tx this method uses the empty Bytes values for the
-* signature parameters `v`, `r` and `s` for encoding.
-*/
-std::string Transaction::serialized() const {
-    RLPValue arr(RLPValue::VARR);
-    arr.setArray();
+// Optimized helper function to append data to the RLP array
+// Declared inline to hint to the compiler that it should avoid function call overhead by integrating the function's body at each call site.
+template<typename T, typename Converter>
+inline void appendDataToRLP(RLPValue& arr, const T& value, Converter convertFunction) {
     RLPValue temp_val;
-    temp_val.clear();
-    temp_val.assign(utils::intToBytes(chainId));
+    temp_val.assign(convertFunction(value));
     arr.push_back(temp_val);
-    temp_val.assign(utils::intToBytes(nonce));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::intToBytes(maxPriorityFeePerGas));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::intToBytes(maxFeePerGas));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::intToBytes(gasLimit));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::fromHexString(to));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::intToBytes(value));
-    arr.push_back(temp_val);
-    temp_val.assign(utils::fromHexString(data));
-    arr.push_back(temp_val);
+}
 
-    // Access list not going to use
-    RLPValue access_list(RLPValue::VARR);
-    access_list.setArray();
-    arr.push_back(access_list);
+std::string Transaction::serialized() const {
+    try {
+        RLPValue arr(RLPValue::VARR);
+        arr.setArray();
 
-    if (!sig.isEmpty()) {
-        temp_val.assign(utils::intToBytes(sig.signatureYParity));
-        arr.push_back(temp_val);
-        temp_val.assign(utils::removeLeadingZeros(sig.signatureR));
-        arr.push_back(temp_val);
-        temp_val.assign(utils::removeLeadingZeros(sig.signatureS));
-        arr.push_back(temp_val);
+        // Serialize transaction data using the optimized helper function
+        appendDataToRLP(arr, chainId, utils::intToBytes);
+        appendDataToRLP(arr, nonce, utils::intToBytes);
+        appendDataToRLP(arr, maxPriorityFeePerGas, utils::intToBytes);
+        appendDataToRLP(arr, maxFeePerGas, utils::intToBytes);
+        appendDataToRLP(arr, gasLimit, utils::intToBytes);
+        appendDataToRLP(arr, to, utils::fromHexString);
+        appendDataToRLP(arr, value, utils::intToBytes);
+        appendDataToRLP(arr, this->data, utils::fromHexString);  // Explicitly use member variable
+
+        // Handle the access list, which is empty in this implementation
+        RLPValue access_list(RLPValue::VARR);
+        access_list.setArray();
+        arr.push_back(access_list);
+
+        if (!sig.isEmpty()) {
+            appendDataToRLP(arr, sig.signatureYParity, utils::intToBytes);
+            appendDataToRLP(arr, sig.signatureR, utils::removeLeadingZeros);
+            appendDataToRLP(arr, sig.signatureS, utils::removeLeadingZeros);
+        }
+
+        return "0x02" + utils::toHexString(arr.write());
+    } catch (const std::exception& e) {
+        std::cerr << "Error serializing transaction: " << e.what() << std::endl;
+        throw;
     }
-    return "0x02" + utils::toHexString(arr.write());
 }
 
 std::string Transaction::hash() const {
@@ -57,25 +53,18 @@ std::string Transaction::hash() const {
 
 bool Signature::isEmpty() const {
     return signatureYParity == 0 && signatureR.empty() && signatureS.empty();
-};
+}
 
 void Signature::fromHex(std::string hex_str) {
-
-    // Check for "0x" prefix and remove it
-    if(hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
+    if (hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
         hex_str = hex_str.substr(2);
     }
 
-    if(hex_str.size() != 130) {
+    if (hex_str.size() != 130) {
         throw std::invalid_argument("Input string length should be 130 characters for 65 bytes");
     }
 
-    // Each byte is represented by 2 characters, so multiply indices by 2
-    std::string r_str = hex_str.substr(0, 64);
-    std::string s_str = hex_str.substr(64, 64);
-    std::string y_parity_str = hex_str.substr(128, 2);
-
-    signatureR = utils::fromHexString(r_str);
-    signatureS = utils::fromHexString(s_str);
-    signatureYParity = std::stoull(y_parity_str, nullptr, 16);
+    signatureR = utils::fromHexString(hex_str.substr(0, 64));
+    signatureS = utils::fromHexString(hex_str.substr(64, 64));
+    signatureYParity = std::stoull(hex_str.substr(128, 2), nullptr, 16);
 }
