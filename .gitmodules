@@ -1,15 +1,15 @@
 [submodule "external/Catch2"]
 	path = external/Catch2
-	url = git@github.com:catchorg/Catch2.git
+	url = https://github.com/catchorg/Catch2.git
 [submodule "external/cpr"]
 	path = external/cpr
-	url = git@github.com:libcpr/cpr.git
+	url = https://github.com/libcpr/cpr.git
 [submodule "external/rlpvalue"]
 	path = external/rlpvalue
-	url = git@github.com:bloq/rlpvalue.git
+	url = https://github.com/bloq/rlpvalue.git
 [submodule "external/secp256k1"]
 	path = external/secp256k1
-	url = git@github.com:bitcoin-core/secp256k1.git
+	url = https://github.com/bitcoin-core/secp256k1.git
 [submodule "external/json"]
 	path = external/json
-	url = git@github.com:nlohmann/json.git
+	url = https://github.com/nlohmann/json.git
