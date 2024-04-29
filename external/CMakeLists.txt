@@ -49,7 +49,8 @@ ExternalProject_Add(
     PREFIX            ${RLP_BIN}
     SOURCE_DIR        ${RLP_DIR}
     DOWNLOAD_COMMAND  cd ${RLP_DIR} && git clean -dfX
-    CONFIGURE_COMMAND bash -c ${RLP_DIR}/autogen.sh && bash -c ${RLP_DIR}/configure --srcdir=${RLP_DIR} --disable-shared --enable-static=yes
+    CONFIGURE_COMMAND bash -c "CFLAGS='-fPIC' CXXFLAGS='-fPIC' ${RLP_DIR}/autogen.sh" &&
+                      bash -c "CFLAGS='-fPIC' CXXFLAGS='-fPIC' ${RLP_DIR}/configure --srcdir=${RLP_DIR} --disable-shared --enable-static=yes"
     PATCH_COMMAND     git checkout -- src/InfInt.h &&
                       git apply --ignore-whitespace ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/rlpvalue-001-infint-missing-limits-h.patch
     BUILD_COMMAND     make
