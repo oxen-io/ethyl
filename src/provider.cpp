@@ -33,6 +33,8 @@ void Provider::disconnectFromNetwork() {
 }
 
 cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nlohmann::json& params) {
+    if (url.str() == "")
+        throw std::runtime_error("No URL provided to provider");
     nlohmann::json bodyJson;
     bodyJson["jsonrpc"] = "2.0";
     bodyJson["method"] = method;
@@ -40,7 +42,6 @@ cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nloh
     bodyJson["id"] = 1;
 
     cpr::Body body(bodyJson.dump());
-
     session.SetUrl(url);
     session.SetBody(body);
     session.SetHeader({{"Content-Type", "application/json"}});
@@ -220,6 +221,87 @@ std::optional<nlohmann::json> Provider::getTransactionReceipt(const std::string&
     return std::nullopt;
 }
 
+std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address) {
+    std::vector<LogEntry> logEntries;
+
+    nlohmann::json params = nlohmann::json::array();
+    nlohmann::json params_data = nlohmann::json();
+    params_data["fromBlock"] = utils::decimalToHex(fromBlock);
+    params_data["toBlock"] = utils::decimalToHex(toBlock);
+    params_data["address"] = address;
+    params.push_back(params_data);
+
+    // Make the RPC call
+    cpr::Response response = makeJsonRpcRequest("eth_getLogs", params);
+
+    if (response.status_code == 200) {
+        // Parse the response
+        nlohmann::json responseJson = nlohmann::json::parse(response.text);
+
+        if (responseJson.find("error") != responseJson.end())
+            throw std::runtime_error("Error getting logs: " + responseJson["error"]["message"].get<std::string>());
+
+        // Check if the result field is present and not null
+        if (!responseJson["result"].is_null()) {
+            for (const auto& logJson : responseJson["result"]) {
+                LogEntry logEntry;
+                logEntry.address = logJson.contains("address") ? logJson["address"].get<std::string>() : "";
+                
+                if (logJson.contains("topics")) {
+                    for (const auto& topic : logJson["topics"]) {
+                        logEntry.topics.push_back(topic.get<std::string>());
+                    }
+                }
+
+                logEntry.data = logJson.contains("data") ? logJson["data"].get<std::string>() : "";
+                logEntry.blockNumber = logJson.contains("blockNumber") ? std::make_optional(std::stoull(logJson["blockNumber"].get<std::string>(), nullptr, 16)) : std::nullopt;
+                logEntry.transactionHash = logJson.contains("transactionHash") ? std::make_optional(logJson["transactionHash"].get<std::string>()) : std::nullopt;
+                logEntry.transactionIndex = logJson.contains("transactionIndex") ? std::make_optional(std::stoull(logJson["transactionIndex"].get<std::string>(), nullptr, 16)) : std::nullopt;
+                logEntry.blockHash = logJson.contains("blockHash") ? std::make_optional(logJson["blockHash"].get<std::string>()) : std::nullopt;
+                logEntry.logIndex = logJson.contains("logIndex") ? std::make_optional(std::stoul(logJson["logIndex"].get<std::string>(), nullptr, 16)) : std::nullopt;
+                logEntry.removed = logJson.contains("removed") ? logJson["removed"].get<bool>() : false;
+
+                logEntries.push_back(logEntry);
+            }
+        }
+    }
+    return logEntries;
+}
+
+std::vector<LogEntry> Provider::getLogs(uint64_t block, const std::string& address) {
+    return getLogs(block, block, address);
+}
+
+std::string Provider::getContractStorageRoot(const std::string& address, uint64_t blockNumberInt) {
+    std::stringstream stream;
+    stream << "0x" << std::hex << blockNumberInt;  // Convert uint64_t to hex string
+    std::string blockNumberHex = stream.str();
+    
+    return getContractStorageRoot(address, blockNumberHex);  // Call the original function
+}
+
+std::string Provider::getContractStorageRoot(const std::string& address, const std::string& blockNumber) {
+    nlohmann::json params = nlohmann::json::array();
+    params.push_back(address);
+    auto storage_keys = nlohmann::json::array();
+    params.push_back(storage_keys);
+    params.push_back(blockNumber);
+
+    auto response = makeJsonRpcRequest("eth_getProof", params);
+    if(response.status_code != 200)
+        throw std::runtime_error("Failed to call eth_getProof: " + response.text + " params: " + params.dump());
+
+    nlohmann::json responseJson = nlohmann::json::parse(response.text);
+    if (responseJson.find("error") != responseJson.end())
+        throw std::runtime_error("Error in response of eth_getProof: " + responseJson["error"]["message"].get<std::string>());
+
+    if (responseJson.contains("result") && responseJson["result"].contains("storageHash")) {
+        return responseJson["result"]["storageHash"].get<std::string>();
+    }
+
+    throw std::runtime_error("No storage proof found in response");
+}
+
 // Create and send a raw transaction returns the hash but will also check that it got into the mempool
 std::string Provider::sendTransaction(const Transaction& signedTx) {
     std::string hash = sendUncheckedTransaction(signedTx);
@@ -385,6 +467,17 @@ std::string Provider::getContractDeployedInLatestBlock() {
 }
 
 
+uint64_t Provider::getLatestHeight() {
+    nlohmann::json params = nlohmann::json::array();
+    auto blockResponse = makeJsonRpcRequest("eth_blockNumber", params);
+    if (blockResponse.status_code != 200) {
+        throw std::runtime_error("Failed to get the latest height");
+    }
+    nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
+    return std::stoull(blockJson["result"].get<std::string>(), nullptr, 16);
+
+}
+
 FeeData Provider::getFeeData() {
     // Get latest block
     nlohmann::json params = nlohmann::json::array();
@@ -392,7 +485,7 @@ FeeData Provider::getFeeData() {
     params.push_back(true);
     auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
     if (blockResponse.status_code != 200) {
-        throw std::runtime_error("Failed to get the latest block");
+        throw std::runtime_error("Failed to call get block by number for latest block for baseFeePerGas");
     }
     nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
     uint64_t baseFeePerGas = std::stoull(blockJson["result"]["baseFeePerGas"].get<std::string>(), nullptr, 16);
