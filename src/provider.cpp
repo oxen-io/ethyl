@@ -1,9 +1,15 @@
 // provider.cpp
+#include <chrono>
 #include <iostream>
 #include <thread>
 
-#include <nlohmann/json.hpp>
 #include <cpr/cpr.h>
+#pragma GCC diagnostic push
+#ifndef __clang__
+#pragma GCC diagnostic ignored "-Wuseless-cast"
+#endif
+#include <nlohmann/json.hpp>
+#pragma GCC diagnostic pop
 
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"
@@ -11,8 +17,8 @@
 #include <gmpxx.h>
 
 
-Provider::Provider(const std::string& name, const std::string& _url) 
-    : clientName(name), url(_url) {
+Provider::Provider(std::string name, std::string url)
+    : clientName{std::move(name)}, url{std::move(url)} {
     // Initialize client
 }
 
@@ -35,7 +41,7 @@ void Provider::disconnectFromNetwork() {
     std::cout << "Disconnected from the Ethereum network.\n";
 }
 
-cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nlohmann::json& params) {
+cpr::Response Provider::makeJsonRpcRequest(std::string_view method, const nlohmann::json& params) {
     if (url.str() == "")
         throw std::runtime_error("No URL provided to provider");
     nlohmann::json bodyJson;
@@ -132,7 +138,7 @@ std::string Provider::evm_snapshot() {
     throw std::runtime_error("Unable to create snapshot");
 }
 
-bool Provider::evm_revert(const std::string& snapshotId) {
+bool Provider::evm_revert(std::string_view snapshotId) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(snapshotId);
 
@@ -183,7 +189,7 @@ uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
 }
 
 
-uint64_t Provider::getTransactionCount(const std::string& address, const std::string& blockTag) {
+uint64_t Provider::getTransactionCount(std::string_view address, std::string_view blockTag) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back(blockTag);
@@ -212,7 +218,7 @@ uint64_t Provider::getTransactionCount(const std::string& address, const std::st
     throw std::runtime_error("Unable to get transaction count");
 }
 
-std::optional<nlohmann::json> Provider::getTransactionByHash(const std::string& transactionHash) {
+std::optional<nlohmann::json> Provider::getTransactionByHash(std::string_view transactionHash) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(transactionHash);
 
@@ -237,7 +243,7 @@ std::optional<nlohmann::json> Provider::getTransactionByHash(const std::string& 
     return std::nullopt;
 }
 
-std::optional<nlohmann::json> Provider::getTransactionReceipt(const std::string& transactionHash) {
+std::optional<nlohmann::json> Provider::getTransactionReceipt(std::string_view transactionHash) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(transactionHash);
 
@@ -262,7 +268,7 @@ std::optional<nlohmann::json> Provider::getTransactionReceipt(const std::string&
     return std::nullopt;
 }
 
-std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address) {
+std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, std::string_view address) {
     std::vector<LogEntry> logEntries;
 
     nlohmann::json params = nlohmann::json::array();
@@ -309,19 +315,15 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, co
     return logEntries;
 }
 
-std::vector<LogEntry> Provider::getLogs(uint64_t block, const std::string& address) {
+std::vector<LogEntry> Provider::getLogs(uint64_t block, std::string_view address) {
     return getLogs(block, block, address);
 }
 
-std::string Provider::getContractStorageRoot(const std::string& address, uint64_t blockNumberInt) {
-    std::stringstream stream;
-    stream << "0x" << std::hex << blockNumberInt;  // Convert uint64_t to hex string
-    std::string blockNumberHex = stream.str();
-    
-    return getContractStorageRoot(address, blockNumberHex);  // Call the original function
+std::string Provider::getContractStorageRoot(std::string_view address, uint64_t blockNumberInt) {
+    return getContractStorageRoot(address, "0x" + utils::decimalToHex(blockNumberInt));
 }
 
-std::string Provider::getContractStorageRoot(const std::string& address, const std::string& blockNumber) {
+std::string Provider::getContractStorageRoot(std::string_view address, std::string_view blockNumber) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     auto storage_keys = nlohmann::json::array();
@@ -343,28 +345,33 @@ std::string Provider::getContractStorageRoot(const std::string& address, const s
     throw std::runtime_error("No storage proof found in response");
 }
 
+// Calls `f()` which should return an optional<T> repeatedly (sleeping for `call_interval` between
+// each call) until it returns a non-nullopt, then returns it.  Throws runtime_error on timeout.
+template <typename Func>
+static auto waitForResult(Func&& f, std::chrono::milliseconds timeout, const std::string& errmsg = "Transaction inclusion in a block timned out", std::chrono::milliseconds call_interval = 500ms) {
+    auto timeout_at = std::chrono::steady_clock::now() + timeout;
+
+    auto val = f();
+    while (!val.has_value() && std::chrono::steady_clock::now() < timeout_at) {
+        std::this_thread::sleep_for(call_interval);
+        val = f();
+    }
+
+    if (val.has_value())
+        return std::move(*val);
+
+    throw std::runtime_error{errmsg};
+}
+
 // Create and send a raw transaction returns the hash but will also check that it got into the mempool
 std::string Provider::sendTransaction(const Transaction& signedTx) {
     std::string hash = sendUncheckedTransaction(signedTx);
 
-    std::future<std::string> futureTx = std::async(std::launch::async, [&]() -> std::string {
-        std::vector<int> timeouts = { 4000, 100, 1000 };
-
-        while(true) {
-            const auto maybe_tx = getTransactionByHash(hash);
-            if(maybe_tx) {
+    return waitForResult([&]() -> std::optional<std::string> {
+            if (getTransactionByHash(hash))
                 return hash;
-            }
-
-            if(timeouts.empty()) {
-                throw std::runtime_error("Transaction request timed out");
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(timeouts.back()));
-            timeouts.pop_back();
-        }
-    });
-
-    return futureTx.get();
+            return std::nullopt;
+        }, 5s, "Transaction request timed out");
 }
 
 // Create and send a raw transaction returns the hash without checking if it succeeded in getting into the mempool
@@ -387,85 +394,53 @@ std::string Provider::sendUncheckedTransaction(const Transaction& signedTx) {
     }
 }
 
-uint64_t Provider::waitForTransaction(const std::string& txHash, int64_t timeout) {
-    std::future<uint64_t> futureTx = std::async(std::launch::async, [&]() -> uint64_t {
-        auto start = std::chrono::steady_clock::now();
-        while(true) {
-            const auto maybe_tx_json = getTransactionByHash(txHash);
+uint64_t Provider::waitForTransaction(
+        std::string_view txHash, std::chrono::milliseconds timeout) {
+    return waitForResult(
+            [&]() -> std::optional<uint64_t> {
+                if (const auto maybe_tx_json = getTransactionByHash(txHash);
+                    maybe_tx_json && !(*maybe_tx_json)["blockNumber"].is_null()) {
 
-            // If transaction is received, resolve the promise
-            if(maybe_tx_json && !(*maybe_tx_json)["blockNumber"].is_null()) {
-                // Parse the block number from the hex string
-                std::string blockNumberHex = (*maybe_tx_json)["blockNumber"];
-                return utils::fromHexStringToUint64(blockNumberHex);
-            }
-
-            auto now = std::chrono::steady_clock::now();
-            if(std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > timeout) {
-                throw std::runtime_error("Transaction inclusion in a block timed out");
-            }
-
-            // Wait for a while before next check
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-    });
-    
-    return futureTx.get();
+                    // Parse the block number from the hex string
+                    auto blockNumberHex = (*maybe_tx_json)["blockNumber"].get<std::string_view>();
+                    return utils::fromHexStringToUint64(blockNumberHex);
+                }
+                return std::nullopt;
+            },
+            timeout);
 }
 
-bool Provider::transactionSuccessful(const std::string& txHash, int64_t timeout) {
-    std::future<uint64_t> futureTx = std::async(std::launch::async, [&]() -> uint64_t {
-        auto start = std::chrono::steady_clock::now();
-        while(true) {
-            const auto maybe_tx_json = getTransactionReceipt(txHash);
+bool Provider::transactionSuccessful(std::string_view txHash, std::chrono::milliseconds timeout) {
+    return waitForResult(
+            [&]() -> std::optional<bool> {
+                if (const auto maybe_tx_json = getTransactionReceipt(txHash);
+                    maybe_tx_json && !(*maybe_tx_json)["status"].is_null()) {
 
-            // If transaction is received, resolve the promise
-            if(maybe_tx_json && !(*maybe_tx_json)["status"].is_null()) {
-                // Parse the status from the hex string
-                std::string statusHex = (*maybe_tx_json)["status"];
-                return static_cast<bool>(utils::fromHexStringToUint64(statusHex));
-            }
-
-            auto now = std::chrono::steady_clock::now();
-            if(std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > timeout) {
-                throw std::runtime_error("Transaction inclusion in a block timed out");
-            }
-
-            // Wait for a while before next check
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-    });
-    
-    return futureTx.get();
+                    // Parse the status from the hex string
+                    auto statusHex = (*maybe_tx_json)["status"].get<std::string_view>();
+                    return static_cast<bool>(utils::fromHexStringToUint64(statusHex));
+                }
+                return std::nullopt;
+            },
+            timeout);
 }
 
-uint64_t Provider::gasUsed(const std::string& txHash, int64_t timeout) {
-    std::future<uint64_t> futureTx = std::async(std::launch::async, [&]() -> uint64_t {
-        auto start = std::chrono::steady_clock::now();
-        while(true) {
-            const auto maybe_tx_json = getTransactionReceipt(txHash);
+uint64_t Provider::gasUsed(std::string_view txHash, std::chrono::milliseconds timeout) {
+    return waitForResult(
+            [&]() -> std::optional<uint64_t> {
+                if (const auto maybe_tx_json = getTransactionReceipt(txHash);
+                    maybe_tx_json && !(*maybe_tx_json)["gasUsed"].is_null()) {
 
-            // If transaction is received, resolve the promise
-            if(maybe_tx_json && !(*maybe_tx_json)["gasUsed"].is_null()) {
-                // Parse the status from the hex string
-                std::string gasUsed = (*maybe_tx_json)["gasUsed"];
-                return utils::fromHexStringToUint64(gasUsed);
-            }
-
-            auto now = std::chrono::steady_clock::now();
-            if(std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > timeout) {
-                throw std::runtime_error("Transaction inclusion in a block timed out");
-            }
-
-            // Wait for a while before next check
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-    });
-    
-    return futureTx.get();
+                    // Parse the status from the hex string
+                    auto gasUsed = (*maybe_tx_json)["gasUsed"].get<std::string_view>();
+                    return utils::fromHexStringToUint64(gasUsed);
+                }
+                return std::nullopt;
+            },
+            timeout);
 }
 
-std::string Provider::getBalance(const std::string& address) {
+std::string Provider::getBalance(std::string_view address) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back("latest");
@@ -485,7 +460,7 @@ std::string Provider::getBalance(const std::string& address) {
 
         return balance.get_str();
     } else {
-        throw std::runtime_error("Failed to get balance for address " + address);
+        throw std::runtime_error("Failed to get balance for address " + std::string{address});
     }
 }
 

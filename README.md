@@ -28,10 +28,6 @@ cmake --build build --parallel --verbose
 pacman -Syuu # Terminal may prompt to restart before proceeding
 pacman -S git base-devel libargp-devel cmake gcc libcurl-devel gmp-devel autoconf automake libtool
 
-# MSYS packages libargp with a .dll suffix which breaks rlpvalue's autotool
-# script so we patch it up
-ln -s /usr/lib/libargp.dll.a /usr/lib/libargp.a
-
 # Build
 cmake -B build -S .
 cmake --build build --parallel --verbose

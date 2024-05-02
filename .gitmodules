@@ -4,12 +4,12 @@
 [submodule "external/cpr"]
 	path = external/cpr
 	url = https://github.com/libcpr/cpr.git
-[submodule "external/rlpvalue"]
-	path = external/rlpvalue
-	url = https://github.com/bloq/rlpvalue.git
 [submodule "external/secp256k1"]
 	path = external/secp256k1
 	url = https://github.com/bitcoin-core/secp256k1.git
 [submodule "external/json"]
 	path = external/json
 	url = https://github.com/nlohmann/json.git
+[submodule "external/oxen-encoding"]
+	path = external/oxen-encoding
+	url = https://github.com/oxen-io/oxen-encoding.git

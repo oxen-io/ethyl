@@ -14,6 +14,8 @@
 #include "transaction.hpp"
 #include "logs.hpp"
 
+using namespace std::literals;
+
 struct ReadCallData {
     std::string contractAddress;
     std::string data;
@@ -34,43 +36,43 @@ class Provider {
     cpr::Session session;
     std::mutex mutex;
 public:
-    Provider(const std::string& name, const std::string& _url);
+    Provider(std::string name, std::string url);
     ~Provider();
 
     void connectToNetwork();
     void disconnectFromNetwork();
 
-    uint64_t       getTransactionCount(const std::string& address, const std::string& blockTag);
+    uint64_t       getTransactionCount(std::string_view address, std::string_view blockTag);
     nlohmann::json callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber = "latest");
     std::string    callReadFunction(const ReadCallData& callData, std::string_view blockNumber = "latest");
     std::string    callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
 
     uint32_t getNetworkChainId();
     std::string evm_snapshot();
-    bool evm_revert(const std::string& snapshotId);
+    bool evm_revert(std::string_view snapshotId);
 
     uint64_t evm_increaseTime(std::chrono::seconds seconds);
 
-    std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
-    std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
-    std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address);
-    std::vector<LogEntry> getLogs(uint64_t block, const std::string& address);
-    std::string getContractStorageRoot(const std::string& address, uint64_t blockNumberInt);
-    std::string getContractStorageRoot(const std::string& address, const std::string& blockNumber = "latest");
+    std::optional<nlohmann::json> getTransactionByHash(std::string_view transactionHash);
+    std::optional<nlohmann::json> getTransactionReceipt(std::string_view transactionHash);
+    std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, std::string_view address);
+    std::vector<LogEntry> getLogs(uint64_t block, std::string_view address);
+    std::string getContractStorageRoot(std::string_view address, uint64_t blockNumberInt);
+    std::string getContractStorageRoot(std::string_view address, std::string_view blockNumber = "latest");
 
     std::string sendTransaction(const Transaction& signedTx);
     std::string sendUncheckedTransaction(const Transaction& signedTx);
 
-    uint64_t waitForTransaction(const std::string& txHash, int64_t timeout = 320000);
-    bool transactionSuccessful(const std::string& txHash, int64_t timeout = 320000);
-    uint64_t gasUsed(const std::string& txHash, int64_t timeout = 320000);
-    std::string getBalance(const std::string& address);
+    uint64_t waitForTransaction(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    bool transactionSuccessful(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    uint64_t gasUsed(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    std::string getBalance(std::string_view address);
     std::string getContractDeployedInLatestBlock();
 
     uint64_t getLatestHeight();
     FeeData getFeeData();
 
 private:
-    cpr::Response makeJsonRpcRequest(const std::string& method, const nlohmann::json& params);
+    cpr::Response makeJsonRpcRequest(std::string_view method, const nlohmann::json& params);
 };
 

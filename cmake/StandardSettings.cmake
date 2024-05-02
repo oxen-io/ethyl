@@ -2,7 +2,14 @@
 # Compiler options
 #
 
-option(${PROJECT_NAME}_WARNINGS_AS_ERRORS "Treat compiler warnings as errors." OFF)
+option(${PROJECT_NAME}_WARNINGS_AS_ERRORS "Treat compiler warnings as errors." ${${PROJECT_NAME}_IS_TOPLEVEL_PROJECT})
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+option(BUILD_SHARED_LIBS "Build libraries as shared libraries" ON)
 
 Include(FetchContent)
 
@@ -11,7 +18,7 @@ Include(FetchContent)
 #
 # Currently supporting: Catch2.
 
-option(${PROJECT_NAME}_ENABLE_UNIT_TESTING "Enable unit tests for the projects (from the `test` subfolder)." ON)
+option(${PROJECT_NAME}_ENABLE_UNIT_TESTING "Enable unit tests for the projects (from the `test` subfolder)." ${${PROJECT_NAME}_IS_TOPLEVEL_PROJECT})
 
 #
 # Crypto Library
@@ -32,14 +39,7 @@ option(${PROJECT_NAME}_ENABLE_CPPCHECK "Enable static analysis with Cppcheck." O
 
 option(${PROJECT_NAME}_VERBOSE_OUTPUT "Enable verbose output, allowing for a better understanding of each step taken." ON)
 
-# Export all symbols when building a shared library
-if(BUILD_SHARED_LIBS)
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
-  set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-  set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-endif()
-
-option(${PROJECT_NAME}_ENABLE_LTO "Enable Interprocedural Optimization, aka Link Time Optimization (LTO)." OFF)
+option(${PROJECT_NAME}_ENABLE_LTO "Enable Interprocedural Optimization, aka Link Time Optimization (LTO)." ON)
 if(${PROJECT_NAME}_ENABLE_LTO)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT result OUTPUT output)
