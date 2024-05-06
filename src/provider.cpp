@@ -226,8 +226,8 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, co
 
     nlohmann::json params = nlohmann::json::array();
     nlohmann::json params_data = nlohmann::json();
-    params_data["fromBlock"] = utils::decimalToHex(fromBlock);
-    params_data["toBlock"] = utils::decimalToHex(toBlock);
+    params_data["fromBlock"] = std::string("0x") + utils::decimalToHex(fromBlock);
+    params_data["toBlock"] = std::string("0x") + utils::decimalToHex(toBlock);
     params_data["address"] = address;
     params.push_back(params_data);
 
