@@ -5,6 +5,7 @@
 #include <string_view>
 #include <optional>
 #include <chrono>
+#include <mutex>
 
 #include <cpr/cpr.h>
 #pragma GCC diagnostic push
@@ -33,6 +34,7 @@ class Provider {
     std::string clientName;
     cpr::Url url;
     cpr::Session session;
+    std::mutex mutex;
 public:
     Provider(const std::string& name, const std::string& _url);
     ~Provider();
