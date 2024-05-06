@@ -42,10 +42,11 @@ cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nloh
     bodyJson["id"] = 1;
 
     cpr::Body body(bodyJson.dump());
+
+    std::lock_guard lock{mutex};
     session.SetUrl(url);
     session.SetBody(body);
     session.SetHeader({{"Content-Type", "application/json"}});
-
     return session.Post();
 }
 
