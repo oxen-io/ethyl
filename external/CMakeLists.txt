@@ -39,13 +39,17 @@ endif()
 #
 # oxen-encoding
 #
-system_or_submodule(OXENC oxenc liboxenc>=1.1.0 oxen-encoding)
+if(NOT TARGET oxenc::oxenc)
+    system_or_submodule(OXENC oxenc liboxenc>=1.1.0 oxen-encoding)
+endif()
 
 #
 # nlohmann_json
 #
-set(JSON_MultipleHeaders ON CACHE BOOL "") # Allows multi-header nlohmann use
-system_or_submodule(NLOHMANN nlohmann_json nlohmann_json>=3.7.0 json)
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    set(JSON_MultipleHeaders ON CACHE BOOL "") # Allows multi-header nlohmann use
+    system_or_submodule(NLOHMANN nlohmann_json nlohmann_json>=3.7.0 json)
+endif()
 
 #
 # GMP
