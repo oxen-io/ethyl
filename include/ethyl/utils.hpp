@@ -78,6 +78,16 @@ namespace utils
 
     uint64_t fromHexStringToUint64(std::string_view hexStr);
 
+    std::string padToNBytes(std::string_view hex_input, size_t bytes, PaddingDirection direction = PaddingDirection::LEFT);
+    inline std::string padTo8Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
+        return padToNBytes(hex_input, 32, direction);
+    }
+
+    inline std::string padTo32Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
+        return padToNBytes(hex_input, 8, direction);
+    }
+
+
     /// Parses an integer of some sort from a string, requiring that the entire string be consumed
     /// during parsing.  Return false if parsing failed, sets `value` and returns true if the entire
     /// string was consumed.

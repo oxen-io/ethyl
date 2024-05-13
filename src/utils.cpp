@@ -1,12 +1,12 @@
 #include "ethyl/utils.hpp"
 
-#include <iterator>
-#include <string>
-#include <cstdlib>
-#include <ctime>
-
 #include <oxenc/endian.h>
 #include <oxenc/hex.h>
+
+#include <cstdlib>
+#include <ctime>
+#include <iterator>
+#include <string>
 
 extern "C" {
 #include "crypto/keccak.h"
@@ -18,15 +18,13 @@ std::string utils::decimalToHex(uint64_t decimal) {
     return {buf, ec == std::errc{} ? static_cast<size_t>(end - buf) : 0};
 }
 
-std::string_view utils::trimPrefix(std::string_view src, std::string_view prefix)
-{
+std::string_view utils::trimPrefix(std::string_view src, std::string_view prefix) {
     if (src.starts_with(prefix))
         return src.substr(prefix.size());
     return src;
 }
 
-std::string_view utils::trimLeadingZeros(std::string_view src)
-{
+std::string_view utils::trimLeadingZeros(std::string_view src) {
     if (auto p = src.find_first_not_of('0'); p != src.npos)
         return src.substr(p);
     return src;
@@ -69,6 +67,30 @@ std::string utils::getFunctionSignature(const std::string& function) {
     return "0x" + hashHex.substr(0, 8);
 }
 
+std::string utils::padToNBytes(
+        std::string_view hex_input, size_t bytes, utils::PaddingDirection direction) {
+    bool has_0x_prefix = hex_input.starts_with("0x");
+    size_t target_size = 2 * bytes + 2 * has_0x_prefix;
+    if (hex_input.size() >= target_size)
+        return std::string{hex_input};
+
+    std::string out;
+    out.reserve(target_size);
+
+    if (direction == PaddingDirection::RIGHT) {
+        out += hex_input;
+        out.resize(target_size, '0');
+    } else {
+        if (has_0x_prefix) {
+            out += "0x";
+            hex_input.remove_prefix(2);
+        }
+        out.resize(target_size - hex_input.size(), '0');
+        out += hex_input;
+    }
+    return out;
+}
+
 std::vector<unsigned char> utils::intToBytes(uint64_t num) {
     std::array<unsigned char, 8> buf;
     oxenc::write_host_as_big(num, buf.data());
@@ -77,7 +99,7 @@ std::vector<unsigned char> utils::intToBytes(uint64_t num) {
 
 std::vector<unsigned char> utils::removeLeadingZeros(std::span<const unsigned char> vec) {
     auto it = vec.begin();
-    while(it != vec.end() && *it == 0) {
+    while (it != vec.end() && *it == 0) {
         ++it;
     }
     return {it, vec.end()};
