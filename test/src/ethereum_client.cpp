@@ -10,13 +10,14 @@
 #include <catch2/catch_all.hpp>
 
 using namespace oxenc::literals;
+using namespace ethyl;
 
 // Construct the client with the local RPC URL
-inline constexpr auto PRIVATE_KEY = "96a656cbd64281ea82257ca9978093b25117592287e4e07f5be660d1701f03e9"_hex_u;
-inline constexpr std::string_view ADDRESS = "0x2ccb8b65024e4aa9615a8e704dfb11be76674f1f";
+inline constexpr auto PRIVATE_KEY               = "96a656cbd64281ea82257ca9978093b25117592287e4e07f5be660d1701f03e9"_hex_u;
+inline constexpr std::string_view ADDRESS       = "0x2ccb8b65024e4aa9615a8e704dfb11be76674f1f";
 inline constexpr std::string_view ANVIL_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-inline constexpr auto ANVIL_PRIVATE_KEY = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"_hex_u;
-auto provider = std::make_shared<Provider>("Client", std::string("127.0.0.1:8545"));
+inline constexpr auto ANVIL_PRIVATE_KEY         = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"_hex_u;
+auto provider                                   = std::make_shared<Provider>("Client", std::string("127.0.0.1:8545"));
 Signer signer(provider);
 
 TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {

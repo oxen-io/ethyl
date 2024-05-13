@@ -11,6 +11,8 @@
 
 typedef struct secp256k1_context_struct secp256k1_context; // forward decl
 
+namespace ethyl
+{
 class Signer {
 private:
     secp256k1_context* ctx;
@@ -47,7 +49,5 @@ public:
 
 private:
     void initContext();
-
-// END
 };
-
+}; // namespace ethyl

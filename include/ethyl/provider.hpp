@@ -16,6 +16,8 @@
 
 using namespace std::literals;
 
+namespace ethyl
+{
 struct ReadCallData {
     std::string contractAddress;
     std::string data;
@@ -74,4 +76,4 @@ public:
 private:
     cpr::Response makeJsonRpcRequest(std::string_view method, const nlohmann::json& params);
 };
-
+}; // namespace ethyl

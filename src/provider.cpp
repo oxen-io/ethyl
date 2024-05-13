@@ -16,7 +16,8 @@
 
 #include <gmpxx.h>
 
-
+namespace ethyl
+{
 Provider::Provider(std::string name, std::string url)
     : clientName{std::move(name)}, url{std::move(url)} {
     // Initialize client
@@ -517,3 +518,4 @@ FeeData Provider::getFeeData() {
 
     return FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
 }
+}; // namespace ethyl

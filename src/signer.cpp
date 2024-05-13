@@ -10,6 +10,8 @@
 
 #include <secp256k1_recovery.h>
 
+namespace ethyl
+{
 Signer::Signer() {
     initContext();
 }
@@ -189,3 +191,4 @@ std::string Signer::sendTransaction(Transaction& txn, std::span<const unsigned c
     const auto hash = provider->sendTransaction(txn);
     return hash;
 }
+}; // namespace ethyl
