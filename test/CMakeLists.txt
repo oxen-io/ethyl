@@ -10,14 +10,11 @@ foreach(file ${test_sources})
     get_filename_component(test_name ${file} NAME_WE)
     add_executable(${test_name}_tests ${file})
 
-    set(${PROJECT_NAME}_TEST_LIB ${PROJECT_NAME})
-
     target_link_libraries(
       ${test_name}_tests
       PRIVATE
         Catch2::Catch2WithMain
-        ethyl
-        ${${PROJECT_NAME}_TEST_LIB}
+        ${CMAKE_PROJECT_NAME}
         cncrypto
         cpr::cpr
     )
