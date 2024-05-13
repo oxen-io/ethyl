@@ -37,7 +37,6 @@ class Provider {
     std::mutex mutex;
 public:
     Provider(std::string name, std::string url);
-    ~Provider();
 
     void connectToNetwork();
     void disconnectFromNetwork();

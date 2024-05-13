@@ -22,10 +22,6 @@ Provider::Provider(std::string name, std::string url)
     // Initialize client
 }
 
-Provider::~Provider() {
-    // Cleanup client
-}
-
 void Provider::connectToNetwork() {
     // Here we can verify connection by calling some simple JSON RPC method like `net_version`
     auto response = makeJsonRpcRequest("net_version", cpr::Body("{}"));
