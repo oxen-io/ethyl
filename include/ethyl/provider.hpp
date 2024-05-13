@@ -32,12 +32,7 @@ struct FeeData {
         : gasPrice(_gasPrice), maxFeePerGas(_maxFeePerGas), maxPriorityFeePerGas(_maxPriorityFeePerGas) {}
 };
 
-class Provider {
-    std::string clientName;
-    cpr::Url url;
-    cpr::Session session;
-    std::mutex mutex;
-public:
+struct Provider {
     Provider(std::string name, std::string url);
 
     void connectToNetwork();
@@ -75,5 +70,10 @@ public:
 
 private:
     cpr::Response makeJsonRpcRequest(std::string_view method, const nlohmann::json& params);
+
+    std::string clientName;
+    cpr::Url url;
+    cpr::Session session;
+    std::mutex mutex;
 };
 }; // namespace ethyl
