@@ -32,10 +32,26 @@ struct FeeData {
         : gasPrice(_gasPrice), maxFeePerGas(_maxFeePerGas), maxPriorityFeePerGas(_maxPriorityFeePerGas) {}
 };
 
-struct Provider {
-    Provider(std::string name, std::string url);
+struct Client {
+    std::string name;
+    cpr::Url url;
+};
 
-    void connectToNetwork();
+struct Provider {
+    /** Add a RPC backend for interacting with the Ethereum network.
+     *
+     * The provider does not ensure that no duplicates are added to the list.
+     *
+     * @param name A label for the type of client being added. This information
+     * is stored only for the user to identify the client in the list of
+     * clients in a given provider.
+     *
+     * @returns True if the client was added successfully. False if the `url`
+     * was not set.
+     */
+    bool addClient(std::string name, std::string url);
+
+    bool connectToNetwork();
     void disconnectFromNetwork();
 
     uint64_t       getTransactionCount(std::string_view address, std::string_view blockTag);
@@ -68,11 +84,30 @@ struct Provider {
     uint64_t getLatestHeight();
     FeeData getFeeData();
 
-private:
-    cpr::Response makeJsonRpcRequest(std::string_view method, const nlohmann::json& params);
+    /// List of clients for interacting with the Ethereum network via RPC
+    /// The order of the clients dictates the order in which a request is
+    /// attempted.
+    std::vector<Client>                      clients;
 
-    std::string clientName;
-    cpr::Url url;
+    /// How long the provider is to attempt a connection to the client when
+    /// sending a request to it. If no value is set, the default connect timeout
+    /// of CURL is used which is currently 300 seconds.
+    std::optional<std::chrono::milliseconds> connectTimeout;
+
+private:
+    /**
+     * @param timeout Set a timeout for the provider to connect to current
+     * client it's attempting before returning a timeout failure. If this is not
+     * set,the timeout is the default timeout value of CURL which is 300
+     * seconds.
+     *
+     * If you have multiple clients it may be desired to set this value such
+     * that the provider can quickly evaluate the backup clients in its list on
+     * failure.
+     */
+    cpr::Response makeJsonRpcRequest(std::string_view method,
+                                     const nlohmann::json& params,
+                                     std::optional<std::chrono::milliseconds> timeout);
     cpr::Session session;
     std::mutex mutex;
 };

@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_all.hpp>
+#include <catch2/catch_session.hpp>
 
 using namespace oxenc::literals;
 using namespace ethyl;
@@ -17,12 +18,18 @@ inline constexpr auto PRIVATE_KEY               = "96a656cbd64281ea82257ca997809
 inline constexpr std::string_view ADDRESS       = "0x2ccb8b65024e4aa9615a8e704dfb11be76674f1f";
 inline constexpr std::string_view ANVIL_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 inline constexpr auto ANVIL_PRIVATE_KEY         = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"_hex_u;
-auto provider                                   = std::make_shared<Provider>("Client", std::string("127.0.0.1:8545"));
-Signer signer(provider);
+Signer signer;
+
+int main(int argc, char *argv[]) {
+    signer.provider.addClient("Client", "127.0.0.1:8545");
+    std::cout << "Note to run these tests, ensure that a local Ethereum development network is running at 127.0.0.1:8545" << "\n";
+    int result = Catch::Session().run(argc, argv);
+    return result;
+}
 
 TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {
     // Get the balance of the test address
-    auto balance = provider->getBalance(std::string(ANVIL_ADDRESS));
+    auto balance = signer.provider.getBalance(std::string(ANVIL_ADDRESS));
 
     // Check that the balance is greater than zero
     REQUIRE( balance != "" );
@@ -88,6 +95,7 @@ TEST_CASE( "Signs an unsigned transaction correctly", "[transaction]" ) {
 }
 
 TEST_CASE( "Does a self transfer", "[transaction]" ) {
+    Provider *provider = &signer.provider;
     Transaction tx(std::string(ANVIL_ADDRESS), 100000000000000, 21000);
     tx.chainId = 31337; //LOCAL
     tx.nonce = provider->getTransactionCount(std::string(ANVIL_ADDRESS), "pending");
@@ -104,5 +112,13 @@ TEST_CASE( "Does a self transfer on network using signer to populate", "[transac
     Transaction tx(std::string(ANVIL_ADDRESS), 100000000000000, 21000);
     const auto hash = signer.sendTransaction(tx, ANVIL_PRIVATE_KEY);
     REQUIRE(hash != "");
-    REQUIRE(provider->transactionSuccessful(hash));
+    REQUIRE(signer.provider.transactionSuccessful(hash));
+}
+
+TEST_CASE( "Test multiple clients", "[provider]" ) {
+    Provider provider       = {};
+    provider.connectTimeout = std::chrono::milliseconds(1000);
+    REQUIRE(provider.addClient("This client should fail", "0.0.0.0:80")     == true);
+    REQUIRE(provider.addClient("Client",                  "127.0.0.1:8545") == true);
+    REQUIRE(provider.connectToNetwork());
 }
