@@ -106,10 +106,6 @@ namespace utils
 
     std::string getFunctionSignature(const std::string& function);
 
-    std::vector<unsigned char> intToBytes(uint64_t num);
-
-    std::vector<unsigned char> removeLeadingZeros(std::span<const unsigned char> vec);
-
     std::string trimAddress(const std::string& address);
 
 // END

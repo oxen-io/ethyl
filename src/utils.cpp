@@ -96,20 +96,6 @@ std::string utils::padToNBytes(
     return out;
 }
 
-std::vector<unsigned char> utils::intToBytes(uint64_t num) {
-    std::array<unsigned char, 8> buf;
-    oxenc::write_host_as_big(num, buf.data());
-    return removeLeadingZeros(buf);
-}
-
-std::vector<unsigned char> utils::removeLeadingZeros(std::span<const unsigned char> vec) {
-    auto it = vec.begin();
-    while (it != vec.end() && *it == 0) {
-        ++it;
-    }
-    return {it, vec.end()};
-}
-
 std::string utils::trimAddress(const std::string& address) {
     if (address.length() <= 42) {
         // Address is already 20 bytes or shorter, no need to trim

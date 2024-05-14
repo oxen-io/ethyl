@@ -15,7 +15,7 @@
 std::string Transaction::serialized() const {
     using namespace oxenc;
 
-    std::vector<std::variant<uint64_t, std::vector<unsigned char>, std::vector<uint64_t>>> arr;
+    std::vector<std::variant<uint64_t, std::span<const unsigned char>, std::vector<uint64_t>>> arr;
     arr.push_back(chainId);
     arr.push_back(nonce);
     arr.push_back(maxPriorityFeePerGas);
@@ -30,8 +30,8 @@ std::string Transaction::serialized() const {
 
     if (!sig.isEmpty()) {
         arr.push_back(sig.signatureYParity);
-        arr.push_back(sig.signatureR);
-        arr.push_back(sig.signatureS);
+        arr.push_back(oxenc::rlp_big_integer(sig.signatureR));
+        arr.push_back(oxenc::rlp_big_integer(sig.signatureS));
     }
     return "0x02" + oxenc::to_hex(rlp_serialize(arr));
 }
