@@ -18,18 +18,12 @@
 
 namespace ethyl
 {
-<<<<<<< HEAD
-Provider::Provider(std::string name, std::string url)
-    : clientName{std::move(name)}, url{std::move(url)} {
-    // Initialize client
-=======
 bool Provider::addClient(std::string name, std::string url) {
     bool result = url.size();
     if (result) {
         clients.emplace_back(Client{std::move(name), std::move(url)});
     }
     return result;
->>>>>>> 589a2a9 (Support multiple RPC backends/backup clients)
 }
 
 bool Provider::connectToNetwork() {
@@ -49,19 +43,15 @@ void Provider::disconnectFromNetwork() {
     std::cout << "Disconnected from the Ethereum network.\n";
 }
 
-<<<<<<< HEAD
-cpr::Response Provider::makeJsonRpcRequest(std::string_view method, const nlohmann::json& params) {
-    if (url.str() == "")
-        throw std::runtime_error("No URL provided to provider");
-=======
-cpr::Response Provider::makeJsonRpcRequest(const std::string& method, const nlohmann::json& params, std::optional<std::chrono::milliseconds> timeout) {
+cpr::Response Provider::makeJsonRpcRequest(std::string_view method,
+                                           const nlohmann::json& params,
+                                           std::optional<std::chrono::milliseconds> timeout) {
     if (clients.empty()) {
       throw std::runtime_error(
           "No clients were set for the provider. Ensure that a client was "
           "added to the provider before issuing a request.");
     }
 
->>>>>>> 589a2a9 (Support multiple RPC backends/backup clients)
     nlohmann::json bodyJson;
     bodyJson["jsonrpc"] = "2.0";
     bodyJson["method"]  = method;
@@ -191,7 +181,7 @@ uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(seconds.count());
 
-    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
+    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params, connectTimeout);
     if (response.status_code != 200) {
         throw std::runtime_error("Unable to set time");
     }
@@ -205,7 +195,7 @@ uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
     } else if (responseJson["result"].is_null()) {
         throw std::runtime_error("Null result in response");
     }
-    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
+    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array(), connectTimeout);
     if (response.status_code != 200) {
         throw std::runtime_error("Unable to set time");
     }

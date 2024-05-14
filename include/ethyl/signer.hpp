@@ -34,8 +34,8 @@ public:
     std::vector<unsigned char> sign(std::string_view hash, std::span<const unsigned char> seckey);
 
     // Client usage methods
-    std::vector<unsigned char> signMessage(const std::string& message, const std::vector<unsigned char>& seckey);
-    std::string signTransaction(Transaction& tx, const std::vector<unsigned char>& seckey);
+    std::vector<unsigned char> signMessage(std::string_view message, std::span<const unsigned char> seckey);
+    std::string signTransaction(Transaction& tx, std::span<const unsigned char> seckey);
 
     void populateTransaction(Transaction& tx, std::string sender_address);
     std::string sendTransaction(Transaction& tx, std::span<const unsigned char> seckey);
