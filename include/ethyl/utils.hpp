@@ -80,11 +80,11 @@ namespace utils
 
     std::string padToNBytes(std::string_view hex_input, size_t bytes, PaddingDirection direction = PaddingDirection::LEFT);
     inline std::string padTo8Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
-        return padToNBytes(hex_input, 32, direction);
+        return padToNBytes(hex_input, 8, direction);
     }
 
     inline std::string padTo32Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
-        return padToNBytes(hex_input, 8, direction);
+        return padToNBytes(hex_input, 32, direction);
     }
 
 
