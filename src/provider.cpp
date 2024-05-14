@@ -273,8 +273,8 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, st
 
     nlohmann::json params = nlohmann::json::array();
     nlohmann::json params_data = nlohmann::json();
-    params_data["fromBlock"] = std::string("0x") + utils::decimalToHex(fromBlock);
-    params_data["toBlock"] = std::string("0x") + utils::decimalToHex(toBlock);
+    params_data["fromBlock"] = utils::decimalToHex(fromBlock, true);
+    params_data["toBlock"] = utils::decimalToHex(toBlock, true);
     params_data["address"] = address;
     params.push_back(params_data);
 
@@ -320,7 +320,7 @@ std::vector<LogEntry> Provider::getLogs(uint64_t block, std::string_view address
 }
 
 std::string Provider::getContractStorageRoot(std::string_view address, uint64_t blockNumberInt) {
-    return getContractStorageRoot(address, "0x" + utils::decimalToHex(blockNumberInt));
+    return getContractStorageRoot(address, utils::decimalToHex(blockNumberInt, true));
 }
 
 std::string Provider::getContractStorageRoot(std::string_view address, std::string_view blockNumber) {

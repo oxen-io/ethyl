@@ -39,7 +39,7 @@ namespace utils
         return oss.str();
     }
 
-    std::string      decimalToHex(uint64_t decimal);
+    std::string      decimalToHex(uint64_t decimal, bool prefixed_0x = false);
     std::string_view trimPrefix(std::string_view src, std::string_view prefix);
     std::string_view trimLeadingZeros(std::string_view src);
 

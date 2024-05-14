@@ -12,9 +12,14 @@ extern "C" {
 #include "crypto/keccak.h"
 }
 
-std::string utils::decimalToHex(uint64_t decimal) {
-    char buf[20];
-    auto [end, ec] = std::to_chars(std::begin(buf), std::end(buf), decimal, 16);
+std::string utils::decimalToHex(uint64_t decimal, bool prefixed_0x) {
+    char buf[22];
+    if (prefixed_0x) {
+        buf[0] = '0';
+        buf[1] = 'x';
+    }
+
+    auto [end, ec] = std::to_chars(std::begin(buf) + 2 * prefixed_0x, std::end(buf), decimal, 16);
     return {buf, ec == std::errc{} ? static_cast<size_t>(end - buf) : 0};
 }
 
