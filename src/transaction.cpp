@@ -1,50 +1,39 @@
 #include "ethyl/transaction.hpp"
 #include "ethyl/utils.hpp"
 
-#include <rlpvalue.h>
-#include <iostream>
-#include <exception>
+#include <oxenc/rlp_serialize.h>
 
-// Optimized helper function to append data to the RLP array
-// Declared inline to hint to the compiler that it should avoid function call overhead by integrating the function's body at each call site.
-template<typename T, typename Converter>
-inline void appendDataToRLP(RLPValue& arr, const T& value, Converter convertFunction) {
-    RLPValue temp_val;
-    temp_val.assign(convertFunction(value));
-    arr.push_back(temp_val);
-}
-
+/**
+* Returns the raw Bytes of the EIP-1559 transaction, in order.
+*
+* Format: `[chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data,
+* accessList, signatureYParity, signatureR, signatureS]`
+*
+* For an unsigned tx this method uses the empty Bytes values for the
+* signature parameters `v`, `r` and `s` for encoding.
+*/
 std::string Transaction::serialized() const {
-    try {
-        RLPValue arr(RLPValue::VARR);
-        arr.setArray();
+    using namespace oxenc;
 
-        // Serialize transaction data using the optimized helper function
-        appendDataToRLP(arr, chainId, utils::intToBytes);
-        appendDataToRLP(arr, nonce, utils::intToBytes);
-        appendDataToRLP(arr, maxPriorityFeePerGas, utils::intToBytes);
-        appendDataToRLP(arr, maxFeePerGas, utils::intToBytes);
-        appendDataToRLP(arr, gasLimit, utils::intToBytes);
-        appendDataToRLP(arr, to, utils::fromHexString);
-        appendDataToRLP(arr, value, utils::intToBytes);
-        appendDataToRLP(arr, this->data, utils::fromHexString);  // Explicitly use member variable
+    std::vector<std::variant<uint64_t, std::span<const unsigned char>, std::vector<unsigned char>, std::vector<uint64_t>>> arr;
+    arr.push_back(chainId);
+    arr.push_back(nonce);
+    arr.push_back(maxPriorityFeePerGas);
+    arr.push_back(maxFeePerGas);
+    arr.push_back(gasLimit);
+    arr.push_back(utils::fromHexString(to));
+    arr.push_back(value);
+    arr.push_back(utils::fromHexString(data));
 
-        // Handle the access list, which is empty in this implementation
-        RLPValue access_list(RLPValue::VARR);
-        access_list.setArray();
-        arr.push_back(access_list);
+    // Access list not going to use
+    arr.push_back(std::vector<uint64_t>{});
 
-        if (!sig.isEmpty()) {
-            appendDataToRLP(arr, sig.signatureYParity, utils::intToBytes);
-            appendDataToRLP(arr, sig.signatureR, utils::removeLeadingZeros);
-            appendDataToRLP(arr, sig.signatureS, utils::removeLeadingZeros);
-        }
-
-        return "0x02" + utils::toHexString(arr.write());
-    } catch (const std::exception& e) {
-        std::cerr << "Error serializing transaction: " << e.what() << std::endl;
-        throw;
+    if (!sig.isEmpty()) {
+        arr.push_back(sig.signatureYParity);
+        arr.push_back(oxenc::rlp_big_integer(sig.signatureR));
+        arr.push_back(oxenc::rlp_big_integer(sig.signatureS));
     }
+    return "0x02" + oxenc::to_hex(rlp_serialize(arr));
 }
 
 std::string Transaction::hash() const {
@@ -55,16 +44,16 @@ bool Signature::isEmpty() const {
     return signatureYParity == 0 && signatureR.empty() && signatureS.empty();
 }
 
-void Signature::fromHex(std::string hex_str) {
-    if (hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x') {
-        hex_str = hex_str.substr(2);
-    }
+void Signature::fromHex(std::string_view hex_str) {
 
-    if (hex_str.size() != 130) {
+    auto bytes = utils::fromHexString(hex_str);
+    if (bytes.size() != 65) {
         throw std::invalid_argument("Input string length should be 130 characters for 65 bytes");
     }
 
-    signatureR = utils::fromHexString(hex_str.substr(0, 64));
-    signatureS = utils::fromHexString(hex_str.substr(64, 64));
-    signatureYParity = std::stoull(hex_str.substr(128, 2), nullptr, 16);
+    signatureR.resize(32);
+    signatureS.resize(32);
+    std::memcpy(signatureR.data(), bytes.data(), 32);
+    std::memcpy(signatureS.data(), bytes.data() + 32, 32);
+    signatureYParity = bytes[64];
 }

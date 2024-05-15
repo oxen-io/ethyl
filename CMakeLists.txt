@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.15)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 #
 # Project details
 #
 
 project(
-  "ethyl"
+  ethyl
   VERSION 0.1.0
+  LANGUAGES C CXX
 )
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -18,12 +21,6 @@ endif()
 #
 # Set project options
 #
-if(${PROJECT_NAME}_IS_TOPLEVEL_PROJECT)
-    set(${PROJECT_NAME}_WARNINGS_AS_ERRORS ON CACHE BOOL "" FORCE)
-else()
-    set(${PROJECT_NAME}_ENABLE_UNIT_TESTING FALSE CACHE BOOL "" FORCE)
-endif()
-
 include(cmake/StandardSettings.cmake)
 include(cmake/StaticAnalyzers.cmake)
 include(cmake/Utils.cmake)
@@ -58,7 +55,6 @@ add_subdirectory(external)
 
 add_library(
     ${PROJECT_NAME}
-    STATIC
     ${headers}
     ${sources}
 )
@@ -89,7 +85,7 @@ message(STATUS "Added all header and implementation files.\n")
 include(cmake/CompilerWarnings.cmake)
 set_project_warnings(${PROJECT_NAME})
 
-verbose_message("Applied compiler warnings. Using standard ${CMAKE_CXX_STANDARD}.\n")
+verbose_message("Applied compiler warnings.\n")
 
 #
 # Model project dependencies
@@ -100,13 +96,13 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
     cpr::cpr
-    cncrypto
     secp256k1
-    rlpvalue
     nlohmann_json::nlohmann_json
+    oxenc::oxenc
+  PRIVATE
+    cncrypto
     gmp
     gmpxx
-  PRIVATE
 )
 
 verbose_message("Successfully added all dependencies and linked against them.")
@@ -120,7 +116,6 @@ target_include_directories(
     PUBLIC
     $<INSTALL_INTERFACE:include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 message(STATUS "Finished setting up include directories.")
 

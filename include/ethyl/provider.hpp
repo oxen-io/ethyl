@@ -7,14 +7,14 @@
 #include <chrono>
 #include <mutex>
 
-#include <cpr/cpr.h>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuseless-cast"
-#include <nlohmann/json.hpp>
-#pragma GCC diagnostic pop
+#include <cpr/cprtypes.h>
+#include <cpr/session.h>
+#include <nlohmann/json_fwd.hpp>
 
 #include "transaction.hpp"
 #include "logs.hpp"
+
+using namespace std::literals;
 
 struct ReadCallData {
     std::string contractAddress;
@@ -36,80 +36,43 @@ class Provider {
     cpr::Session session;
     std::mutex mutex;
 public:
-    Provider(const std::string& name, const std::string& _url);
+    Provider(std::string name, std::string url);
     ~Provider();
 
     void connectToNetwork();
     void disconnectFromNetwork();
 
-    uint64_t       getTransactionCount(const std::string& address, const std::string& blockTag);
+    uint64_t       getTransactionCount(std::string_view address, std::string_view blockTag);
     nlohmann::json callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber = "latest");
     std::string    callReadFunction(const ReadCallData& callData, std::string_view blockNumber = "latest");
     std::string    callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
 
     uint32_t getNetworkChainId();
     std::string evm_snapshot();
-    bool evm_revert(const std::string& snapshotId);
+    bool evm_revert(std::string_view snapshotId);
 
-    template <typename Rep, typename Period>
-    uint64_t evm_increaseTime(const std::chrono::duration<Rep, Period>& duration) {
-        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
+    uint64_t evm_increaseTime(std::chrono::seconds seconds);
 
-        nlohmann::json params = nlohmann::json::array();
-        params.push_back(seconds);
-
-        cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
-        if (response.status_code != 200) {
-            throw std::runtime_error("Unable to set time");
-        }
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-        if (!responseJson.contains("result") && responseJson.contains("error")) {
-            std::string errorMessage = "JSON RPC error: (evm_increaseTime)" + responseJson["error"]["message"].get<std::string>();
-            if (responseJson["error"].contains("data") && responseJson["error"]["data"].contains("message")) {
-                errorMessage += " - " + responseJson["error"]["data"]["message"].get<std::string>();
-            }
-            throw std::runtime_error(errorMessage);
-        } else if (responseJson["result"].is_null()) {
-            throw std::runtime_error("Null result in response");
-        }
-        response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
-        if (response.status_code != 200) {
-            throw std::runtime_error("Unable to set time");
-        }
-        nlohmann::json mineResponseJson = nlohmann::json::parse(response.text);
-        if (!mineResponseJson.contains("result") && mineResponseJson.contains("error")) {
-            std::string errorMessage = "JSON RPC error (evm_mine): " + mineResponseJson["error"]["message"].get<std::string>();
-            if (mineResponseJson["error"].contains("data") && mineResponseJson["error"]["data"].contains("message")) {
-                errorMessage += " - " + mineResponseJson["error"]["data"]["message"].get<std::string>();
-            }
-            throw std::runtime_error(errorMessage);
-        } else if (mineResponseJson["result"].is_null()) {
-            throw std::runtime_error("Null result in response");
-        }
-        std::string secondsHex = responseJson["result"];
-        return std::stoull(secondsHex, nullptr, 16);
-    }
-
-    std::optional<nlohmann::json> getTransactionByHash(const std::string& transactionHash);
-    std::optional<nlohmann::json> getTransactionReceipt(const std::string& transactionHash);
-    std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, const std::string& address);
-    std::vector<LogEntry> getLogs(uint64_t block, const std::string& address);
-    std::string getContractStorageRoot(const std::string& address, uint64_t blockNumberInt);
-    std::string getContractStorageRoot(const std::string& address, const std::string& blockNumber = "latest");
+    std::optional<nlohmann::json> getTransactionByHash(std::string_view transactionHash);
+    std::optional<nlohmann::json> getTransactionReceipt(std::string_view transactionHash);
+    std::vector<LogEntry> getLogs(uint64_t fromBlock, uint64_t toBlock, std::string_view address);
+    std::vector<LogEntry> getLogs(uint64_t block, std::string_view address);
+    std::string getContractStorageRoot(std::string_view address, uint64_t blockNumberInt);
+    std::string getContractStorageRoot(std::string_view address, std::string_view blockNumber = "latest");
 
     std::string sendTransaction(const Transaction& signedTx);
     std::string sendUncheckedTransaction(const Transaction& signedTx);
 
-    uint64_t waitForTransaction(const std::string& txHash, int64_t timeout = 320000);
-    bool transactionSuccessful(const std::string& txHash, int64_t timeout = 320000);
-    uint64_t gasUsed(const std::string& txHash, int64_t timeout = 320000);
-    std::string getBalance(const std::string& address);
+    uint64_t waitForTransaction(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    bool transactionSuccessful(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    uint64_t gasUsed(std::string_view txHash, std::chrono::milliseconds timeout = 320s);
+    std::string getBalance(std::string_view address);
     std::string getContractDeployedInLatestBlock();
 
     uint64_t getLatestHeight();
     FeeData getFeeData();
 
 private:
-    cpr::Response makeJsonRpcRequest(const std::string& method, const nlohmann::json& params);
+    cpr::Response makeJsonRpcRequest(std::string_view method, const nlohmann::json& params);
 };
 

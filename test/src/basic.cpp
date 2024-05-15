@@ -3,17 +3,15 @@
 #include <string.h>
 
 #pragma GCC diagnostic push
+#ifndef __clang__
 #pragma GCC diagnostic ignored "-Wduplicated-branches"
+#endif
 #include <cpr/cpr.h>
 #pragma GCC diagnostic pop
 
 #include <secp256k1.h>
 
 #include "ethyl/ecdsa_util.h"
-
-extern "C" {
-#include "crypto/keccak.h"
-}
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_all.hpp>

@@ -1,9 +1,8 @@
 #include "ethyl/signer.hpp"
 
-#include <stdio.h>
 #include <array>
 #include <stdexcept>
-#include <iostream>
+#include <cstring>
 
 #include "ethyl/ecdsa_util.h"
 #include "ethyl/utils.hpp"
@@ -60,7 +59,7 @@ std::pair<std::vector<unsigned char>, std::vector<unsigned char>> Signer::genera
             std::vector<unsigned char>(compressed_pubkey, compressed_pubkey + sizeof(compressed_pubkey))};
 }
 
-std::array<unsigned char, 20> Signer::secretKeyToAddress(const std::vector<unsigned char>& seckey) {
+std::array<unsigned char, 20> Signer::secretKeyToAddress(std::span<const unsigned char> seckey) {
     std::string address;
 
     // Verify the private key.
@@ -75,12 +74,13 @@ std::array<unsigned char, 20> Signer::secretKeyToAddress(const std::vector<unsig
     }
 
     // Serialize the public key in uncompressed form.
-    std::vector<unsigned char> pub(65);
+    std::array<unsigned char, 65> pub;
     size_t pub_len = 65;
     secp256k1_ec_pubkey_serialize(ctx, pub.data(), &pub_len, &pubkey, SECP256K1_EC_UNCOMPRESSED);
 
+    std::string_view pub_string{reinterpret_cast<const char*>(pub.data()), pub.size()};
     // Skip the type byte.
-    std::string pub_string(pub.begin() + 1, pub.end());
+    pub_string.remove_prefix(1);
     auto hashed_pub = utils::hash(pub_string);
 
     // The last 20 bytes of the Keccak-256 hash of the public key in hex is the address.
@@ -89,7 +89,7 @@ std::array<unsigned char, 20> Signer::secretKeyToAddress(const std::vector<unsig
     return result;
 }
 
-std::string Signer::secretKeyToAddressString(const std::vector<unsigned char>& seckey) {
+std::string Signer::secretKeyToAddressString(std::span<const unsigned char> seckey) {
     std::array<unsigned char, 20> address = secretKeyToAddress(seckey);
     std::string                   result  = {};
     result.reserve(2 + (address.max_size() * 2));
@@ -99,7 +99,7 @@ std::string Signer::secretKeyToAddressString(const std::vector<unsigned char>& s
 }
 
 
-std::vector<unsigned char> Signer::sign(const std::array<unsigned char, 32>& hash, const std::vector<unsigned char>& seckey) {
+std::vector<unsigned char> Signer::sign(const std::array<unsigned char, 32>& hash, std::span<const unsigned char> seckey) {
     secp256k1_ecdsa_recoverable_signature sig;
     unsigned char serialized_signature[64];
     int recid;
@@ -126,7 +126,7 @@ std::vector<unsigned char> Signer::sign(const std::array<unsigned char, 32>& has
     return signature;
 }
 
-std::vector<unsigned char> Signer::sign(const std::string& hash, const std::vector<unsigned char>& seckey) {
+std::vector<unsigned char> Signer::sign(std::string_view hash, std::span<const unsigned char> seckey) {
     return sign(utils::fromHexString32Byte(hash), seckey);
 }
 
@@ -167,12 +167,12 @@ void Signer::populateTransaction(Transaction& tx, std::string sender_address) {
 }
 
 // Hash the message and sign
-std::vector<unsigned char> Signer::signMessage(const std::string& message, const std::vector<unsigned char>& seckey) {
+std::vector<unsigned char> Signer::signMessage(std::string_view message, std::span<const unsigned char> seckey) {
     return sign(utils::hash(message), seckey);
 }
 
 // Hash the transaction and sign
-std::string Signer::signTransaction(Transaction& txn, const std::vector<unsigned char>& seckey) {
+std::string Signer::signTransaction(Transaction& txn, std::span<const unsigned char> seckey) {
     const auto signature_hex = utils::toHexString(sign(txn.hash(), seckey));
     txn.sig.fromHex(signature_hex);
 
@@ -180,7 +180,7 @@ std::string Signer::signTransaction(Transaction& txn, const std::vector<unsigned
 }
 
 // Populates the txn, signs and sends
-std::string Signer::sendTransaction(Transaction& txn, const std::vector<unsigned char>& seckey) {
+std::string Signer::sendTransaction(Transaction& txn, std::span<const unsigned char> seckey) {
     const auto senders_address = secretKeyToAddressString(seckey);
 
     populateTransaction(txn, senders_address);

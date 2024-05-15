@@ -4,8 +4,6 @@
 #include <vector>
 #include <cstdint>
 
-#include "ethyl/utils.hpp"
-
 struct Signature {
     uint64_t signatureYParity = 0;
     std::vector<unsigned char> signatureR = {};
@@ -13,15 +11,15 @@ struct Signature {
 
     bool isEmpty() const;
 
-    void fromHex(std::string hex_str);
+    void fromHex(std::string_view hex_str);
 };
 
 class Transaction {
 public:
-    uint64_t chainId;
-    uint64_t nonce;                     
-    uint64_t maxPriorityFeePerGas;
-    uint64_t maxFeePerGas;
+    uint64_t chainId = 0;
+    uint64_t nonce = 0;
+    uint64_t maxPriorityFeePerGas = 0;
+    uint64_t maxFeePerGas = 0;
     std::string to;
     uint64_t value;     
     uint64_t gasLimit;
@@ -30,8 +28,8 @@ public:
 
     // Constructor                                                                                                        
     // (toAddress, value, gasLimit, data)
-    Transaction(const std::string& _to , uint64_t _value , uint64_t _gasLimit = 21000, const std::string& _data = "") 
-        : chainId(0), nonce(0), maxPriorityFeePerGas(0), maxFeePerGas(0), to(_to), value(_value), gasLimit(_gasLimit), data(_data) {}
+    Transaction(std::string to, uint64_t value, uint64_t gasLimit = 21000, std::string data = "")
+        : to{std::move(to)}, value{std::move(value)}, gasLimit{gasLimit}, data{std::move(data)} {}
 
     std::string serialized() const;
     std::string hash() const;
