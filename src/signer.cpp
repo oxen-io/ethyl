@@ -10,15 +10,9 @@
 
 #include <secp256k1_recovery.h>
 
+namespace ethyl
+{
 Signer::Signer() {
-    initContext();
-}
-
-Signer::Signer(const std::shared_ptr<Provider>& _provider) : provider(_provider) {
-    initContext();
-}
-
-void Signer::initContext() {
     ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
     unsigned char randomize[32];
     if (!fill_random(randomize, sizeof(randomize))) {
@@ -132,17 +126,16 @@ std::vector<unsigned char> Signer::sign(std::string_view hash, std::span<const u
 
 void Signer::populateTransaction(Transaction& tx, std::string sender_address) {
     // Check if the signer has a client
-    if (!hasProvider()) {
-        throw std::runtime_error("Signer does not have a provider");
-    }
+    if (provider.clients.empty())
+        throw std::runtime_error("Signer does not have a provider with any RPC backends set. Ensure that the provider has atleast one client");
 
     // If nonce is not set, get it from the network
     if (tx.nonce == 0) {
-        tx.nonce = provider->getTransactionCount(sender_address, "pending");
+        tx.nonce = provider.getTransactionCount(sender_address, "pending");
     }
 
     // Get network's chain ID
-    uint32_t networkChainId = provider->getNetworkChainId();
+    uint32_t networkChainId = provider.getNetworkChainId();
 
     // Check and set chainId
     if (tx.chainId != 0) {
@@ -154,7 +147,7 @@ void Signer::populateTransaction(Transaction& tx, std::string sender_address) {
     }
 
     // Get fee data
-    const auto feeData = provider->getFeeData();
+    const auto feeData = provider.getFeeData();
     tx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
 
     if (tx.maxFeePerGas == 0) {
@@ -186,6 +179,7 @@ std::string Signer::sendTransaction(Transaction& txn, std::span<const unsigned c
     populateTransaction(txn, senders_address);
     const auto signature_hex = utils::toHexString(sign(txn.hash(), seckey));
     txn.sig.fromHex(signature_hex);
-    const auto hash = provider->sendTransaction(txn);
+    const auto hash = provider.sendTransaction(txn);
     return hash;
 }
+}; // namespace ethyl

@@ -22,7 +22,7 @@ unsigned int Factorial( unsigned int number ) {
 
 int add(int a, int b) { return a + b; }
 
-int64_t request() { 
+int64_t request() {
     cpr::Response r = cpr::Get(cpr::Url{"https://api.github.com/repos/whoshuu/cpr/contributors"},
                       cpr::Authentication{"user", "pass", cpr::AuthMode::BASIC},
                       cpr::Parameters{{"anon", "true"}, {"key", "value"}});

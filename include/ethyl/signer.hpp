@@ -11,10 +11,11 @@
 
 typedef struct secp256k1_context_struct secp256k1_context; // forward decl
 
+namespace ethyl
+{
 class Signer {
 private:
     secp256k1_context* ctx;
-    std::shared_ptr<Provider> provider;
 
     uint64_t maxPriorityFeePerGas = 0;
     uint64_t maxFeePerGas = 0;
@@ -22,7 +23,6 @@ private:
 
 public:
     Signer();
-    Signer(const std::shared_ptr<Provider>& client);
     ~Signer();
 
     // Returns <Pubkey, Seckey>
@@ -34,20 +34,12 @@ public:
     std::vector<unsigned char> sign(std::string_view hash, std::span<const unsigned char> seckey);
 
     // Client usage methods
-    bool hasProvider() const { return static_cast<bool>(provider); }
-    std::shared_ptr<Provider> getProvider() { return provider; }
-
-
     std::vector<unsigned char> signMessage(std::string_view message, std::span<const unsigned char> seckey);
     std::string signTransaction(Transaction& tx, std::span<const unsigned char> seckey);
 
     void populateTransaction(Transaction& tx, std::string sender_address);
     std::string sendTransaction(Transaction& tx, std::span<const unsigned char> seckey);
 
-
-private:
-    void initContext();
-
-// END
+    Provider provider;
 };
-
+}; // namespace ethyl
