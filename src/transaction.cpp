@@ -15,7 +15,7 @@
 std::string Transaction::serialized() const {
     using namespace oxenc;
 
-    std::vector<std::variant<uint64_t, std::span<const unsigned char>, std::vector<uint64_t>>> arr;
+    std::vector<std::variant<uint64_t, std::span<const unsigned char>, std::vector<unsigned char>, std::vector<uint64_t>>> arr;
     arr.push_back(chainId);
     arr.push_back(nonce);
     arr.push_back(maxPriorityFeePerGas);
