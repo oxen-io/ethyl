@@ -30,8 +30,10 @@ public:
 
     // Constructor                                                                                                        
     // (toAddress, value, gasLimit, data)
-    Transaction(std::string to, uint64_t value, uint64_t gasLimit = 21000, std::string data = "")
-        : to{std::move(to)}, value{std::move(value)}, gasLimit{gasLimit}, data{std::move(data)} {}
+    Transaction(std::string to, uint64_t value, uint64_t gasLimit = 21000,
+                std::string data = "")
+        : to{std::move(to)}, value{std::move(value)}, gasLimit{gasLimit},
+          data{std::move(data)} {}
 
     std::string serialized() const;
     std::string hash() const;

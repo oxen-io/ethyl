@@ -36,14 +36,16 @@ TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {
 }
 
 TEST_CASE( "HashTest", "[utils]" ) {
-    std::string hash_hello_world = utils::toHexString(utils::hash("hello world!"));
+    std::array<unsigned char, 32> hash = utils::hash_("hello world!");
+    std::string hash_hello_world = oxenc::to_hex(hash.begin(), hash.end());
     REQUIRE( hash_hello_world == "57caa176af1ac0433c5df30e8dabcd2ec1af1e92a26eced5f719b88458777cd6" );
 }
 
 TEST_CASE( "SigningTest", "[signer]" ) {
-    std::string hash_hello_world = utils::toHexString(utils::hash("Hello World!\n"));
+    std::array<unsigned char, 32> hash =utils::hash_("Hello World!\n");
+    std::string hash_hello_world = oxenc::to_hex(hash.begin(), hash.end());
     const auto signature_bytes = signer.signMessage("Hello World!", PRIVATE_KEY);
-    std::string signature_hex = utils::toHexString(signature_bytes);
+    std::string signature_hex = oxenc::to_hex(signature_bytes.begin(), signature_bytes.end());
     REQUIRE( signature_hex == "35f409302082e02b5126c82be93a3946d30e93722ce3ff87bdb01fc385fe312054f3fade7fab80dcabadabf96af75577327dfd064abd47a36543a475e04840e701" );
 }
 

@@ -39,7 +39,7 @@ std::string Transaction::serialized() const {
 }
 
 std::string Transaction::hash() const {
-    std::array<unsigned char, 32> hash = utils::hash_(serialized());
+    std::array<unsigned char, 32> hash = utils::hashHex(serialized());
     std::string result = "0x" + oxenc::to_hex(hash.begin(), hash.end());
     return result;
 }

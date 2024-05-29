@@ -12,6 +12,7 @@
 #include <secp256k1.h>
 
 #include "ethyl/ecdsa_util.h"
+#include <oxenc/hex.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_all.hpp>
@@ -120,13 +121,14 @@ int ecdsa() {
     /* Verify a signature. This will return 1 if it's valid and 0 if it's not. */
     is_signature_valid = secp256k1_ecdsa_verify(ctx, &sig, msg_hash, &pubkey);
 
+    std::string seckey_hex = oxenc::to_hex(std::begin(seckey), std::end(seckey));
+    std::string compressed_pubkey_hex = oxenc::to_hex(std::begin(compressed_pubkey), std::end(compressed_pubkey));
+    std::string serialized_signature_hex = oxenc::to_hex(std::begin(serialized_signature), std::end(serialized_signature));
+
     printf("Is the signature valid? %s\n", is_signature_valid ? "true" : "false");
-    printf("Secret Key: ");
-    print_hex(seckey, sizeof(seckey));
-    printf("Public Key: ");
-    print_hex(compressed_pubkey, sizeof(compressed_pubkey));
-    printf("Signature: ");
-    print_hex(serialized_signature, sizeof(serialized_signature));
+    printf("Secret Key: %s\n", seckey_hex.c_str());
+    printf("Public Key: %s\n", compressed_pubkey_hex.c_str());
+    printf("Signature: %s\n", serialized_signature_hex.c_str());
 
     /* This will clear everything from the context and free the memory */
     secp256k1_context_destroy(ctx);
