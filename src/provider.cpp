@@ -402,7 +402,7 @@ std::string Provider::sendTransaction(const Transaction& signedTx) {
 // Create and send a raw transaction returns the hash without checking if it succeeded in getting into the mempool
 std::string Provider::sendUncheckedTransaction(const Transaction& signedTx) {
     nlohmann::json params = nlohmann::json::array();
-    params.push_back(signedTx.serializeAsHex());
+    params.push_back("0x" + signedTx.serializeAsHex());
     
     auto response = makeJsonRpcRequest("eth_sendRawTransaction", params, connectTimeout);
     if (response.status_code == 200) {
