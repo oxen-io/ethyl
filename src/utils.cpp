@@ -37,7 +37,7 @@ std::string_view utils::trimLeadingZeros(std::string_view src) {
     return src;
 }
 
-uint64_t utils::fromHexStringToUint64(std::string_view hexStr) {
+uint64_t utils::hexStringToU64(std::string_view hexStr) {
     uint64_t val;
     if (parseInt(trimPrefix(hexStr, "0x"), val, 16))
         return val;
@@ -50,21 +50,30 @@ template std::vector<unsigned char> utils::fromHexString<unsigned char>(std::str
 template std::array<char, 32> utils::fromHexString32Byte<char>(std::string_view);
 template std::array<unsigned char, 32> utils::fromHexString32Byte<unsigned char>(std::string_view);
 
-std::array<unsigned char, 32> utils::hashHex(std::string_view hex) {
+Bytes32 utils::hashHex(std::string_view hex) {
     std::vector<char> bytes = fromHexString<char>(hex);
-    std::array<unsigned char, 32> result =
-            utils::hash_(std::string_view(bytes.data(), bytes.size()));
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
     return result;
 }
 
-std::array<unsigned char, 32> utils::hash_(std::string_view bytes) {
-    std::array<unsigned char, 32> hash;
-    keccak(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), hash.data(), 32);
-    return hash;
+Bytes32 utils::hashBytesPtr(const void *bytes, size_t size) {
+  Bytes32 result;
+  keccak(reinterpret_cast<const uint8_t*>(bytes), size, result.data(), static_cast<int>(result.max_size()));
+  return result;
 }
 
-std::string utils::getFunctionSignature(std::string_view function) {
-    std::array<unsigned char, 32> hash = utils::hash_(function);
+Bytes32 utils::hashBytes(std::span<const char> bytes) {
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
+    return result;
+}
+
+Bytes32 utils::hashBytes(std::span<const unsigned char> bytes) {
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
+    return result;
+}
+
+std::string utils::toEthFunctionSignature(std::string_view function) {
+    Bytes32 hash = utils::hashBytes(std::span(reinterpret_cast<const unsigned char *>(function.data()), function.size()));
     std::string hashHex = oxenc::to_hex(hash.begin(), hash.end());
     std::string result = "0x" + hashHex.substr(0, 8); // Return the first 8 characters of the hex string (4 bytes) plus 0x prefix
     return result;

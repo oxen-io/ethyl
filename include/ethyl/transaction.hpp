@@ -1,42 +1,52 @@
 #pragma once
 
+#include "utils.hpp"
 #include <string>
 #include <vector>
 #include <cstdint>
 
 namespace ethyl
 {
-struct Signature {
+struct Signature
+{
     uint64_t signatureYParity = 0;
-    std::vector<unsigned char> signatureR = {};
-    std::vector<unsigned char> signatureS = {};
+    Bytes32 signatureR;
+    Bytes32 signatureS;
 
     bool isEmpty() const;
-
-    void fromHex(std::string_view hex_str);
+    void set(ECDSACompactSignature const &signature);
 };
 
-class Transaction {
-public:
+struct Transaction
+{
+    Transaction() = default;
+
+    Transaction(std::string to, uint64_t value, uint64_t gasLimit = 21000,
+                std::string data = "");
+
+    /// Serialise the transaction into a RLP serialised payload.
+    std::vector<unsigned char> serialize() const;
+
+    /// See `serialize`. The RLP payload is returned in hex without a '0x'
+    /// prefix.
+    std::string serializeAsHex() const;
+
+    /// Calculate the transaction hash by RLP serializing the contents and
+    /// applying a keccak hash.
+    Bytes32 hash() const;
+
+    /// Calculate the transaction hash by calling `hash` and returning the hex
+    /// representation of the 32 byte hash without a '0x' prefix.
+    std::string hashAsHex() const;
+
     uint64_t chainId = 0;
     uint64_t nonce = 0;
     uint64_t maxPriorityFeePerGas = 0;
     uint64_t maxFeePerGas = 0;
     std::string to;
-    uint64_t value;     
-    uint64_t gasLimit;
+    uint64_t value = 0;
+    uint64_t gasLimit = 0;
     std::string data;
     Signature sig;
-
-    // Constructor                                                                                                        
-    // (toAddress, value, gasLimit, data)
-    Transaction(std::string to, uint64_t value, uint64_t gasLimit = 21000,
-                std::string data = "")
-        : to{std::move(to)}, value{std::move(value)}, gasLimit{gasLimit},
-          data{std::move(data)} {}
-
-    std::string serialized() const;
-    std::string hash() const;
-
 };
 }  // namespace ethyl

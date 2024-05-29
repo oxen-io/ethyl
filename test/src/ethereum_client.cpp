@@ -36,13 +36,14 @@ TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {
 }
 
 TEST_CASE( "HashTest", "[utils]" ) {
-    std::array<unsigned char, 32> hash = utils::hash_("hello world!");
+    std::string_view text = "hello world!";
+    Bytes32 hash = utils::hashBytes(std::span(text.data(), text.size()));
     std::string hash_hello_world = oxenc::to_hex(hash.begin(), hash.end());
     REQUIRE( hash_hello_world == "57caa176af1ac0433c5df30e8dabcd2ec1af1e92a26eced5f719b88458777cd6" );
 }
 
 TEST_CASE( "SigningTest", "[signer]" ) {
-    std::array<unsigned char, 32> hash =utils::hash_("Hello World!\n");
+    Bytes32 hash = utils::hashBytes("Hello World!\n");
     std::string hash_hello_world = oxenc::to_hex(hash.begin(), hash.end());
     const auto signature_bytes = signer.signMessage("Hello World!", PRIVATE_KEY);
     std::string signature_hex = oxenc::to_hex(signature_bytes.begin(), signature_bytes.end());
@@ -74,8 +75,8 @@ TEST_CASE( "Serialise a raw transaction correctly", "[transaction]" ) {
     Transaction tx("0xA6C077fd9283421C657EcEa8a9c1422cc6CEbc80", 1000000000000000000, 21000);
     tx.nonce = 1;
     tx.chainId = 1;
-    std::string raw_tx = tx.serialized();
-    std::string correct_raw_tx = "0x02e70101808082520894a6c077fd9283421c657ecea8a9c1422cc6cebc80880de0b6b3a764000080c0";
+    std::string raw_tx = tx.serializeAsHex();
+    std::string correct_raw_tx = "02e70101808082520894a6c077fd9283421c657ecea8a9c1422cc6cebc80880de0b6b3a764000080c0";
     REQUIRE(raw_tx == correct_raw_tx);
 }
 
@@ -83,8 +84,8 @@ TEST_CASE( "Hashes an unsigned transaction correctly", "[transaction]" ) {
     Transaction tx("0xA6C077fd9283421C657EcEa8a9c1422cc6CEbc80", 1000000000000000000, 21000);
     tx.nonce = 1;
     tx.chainId = 1;
-    std::string unsigned_hash = tx.hash();
-    std::string correct_hash = "0xf81a17092cfb066efa3ff6ef92016adc06ff66a64327359c4003d215d56128b3";
+    std::string unsigned_hash = tx.hashAsHex();
+    std::string correct_hash = "f81a17092cfb066efa3ff6ef92016adc06ff66a64327359c4003d215d56128b3";
     REQUIRE(unsigned_hash == correct_hash);
 }
 
@@ -92,8 +93,8 @@ TEST_CASE( "Signs an unsigned transaction correctly", "[transaction]" ) {
     Transaction tx("0xA6C077fd9283421C657EcEa8a9c1422cc6CEbc80", 1000000000000000000, 21000);
     tx.nonce = 1;
     tx.chainId = 1;
-    const auto signature_hex_string = signer.signTransaction(tx, PRIVATE_KEY);
-    REQUIRE( signature_hex_string == "0x02f86a0101808082520894a6c077fd9283421c657ecea8a9c1422cc6cebc80880de0b6b3a764000080c080a084987299f8dd115333356ab03430ca8de593e03ba03d4ecd72daf15205119cf8a0216c9869da3497ae96dcb98713908af1a0abf866c12d51def821caf0374cccbb" );
+    const auto signature_hex_string = signer.signTransactionAsHex(tx, PRIVATE_KEY);
+    REQUIRE(signature_hex_string == "02f86a0101808082520894a6c077fd9283421c657ecea8a9c1422cc6cebc80880de0b6b3a764000080c080a084987299f8dd115333356ab03430ca8de593e03ba03d4ecd72daf15205119cf8a0216c9869da3497ae96dcb98713908af1a0abf866c12d51def821caf0374cccbb" );
 }
 
 TEST_CASE( "Does a self transfer", "[transaction]" ) {

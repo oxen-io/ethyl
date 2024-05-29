@@ -402,7 +402,7 @@ std::string Provider::sendTransaction(const Transaction& signedTx) {
 // Create and send a raw transaction returns the hash without checking if it succeeded in getting into the mempool
 std::string Provider::sendUncheckedTransaction(const Transaction& signedTx) {
     nlohmann::json params = nlohmann::json::array();
-    params.push_back(signedTx.serialized());
+    params.push_back(signedTx.serializeAsHex());
     
     auto response = makeJsonRpcRequest("eth_sendRawTransaction", params, connectTimeout);
     if (response.status_code == 200) {
@@ -428,7 +428,7 @@ uint64_t Provider::waitForTransaction(
 
                     // Parse the block number from the hex string
                     auto blockNumberHex = (*maybe_tx_json)["blockNumber"].get<std::string_view>();
-                    return utils::fromHexStringToUint64(blockNumberHex);
+                    return utils::hexStringToU64(blockNumberHex);
                 }
                 return std::nullopt;
             },
@@ -443,7 +443,7 @@ bool Provider::transactionSuccessful(std::string_view txHash, std::chrono::milli
 
                     // Parse the status from the hex string
                     auto statusHex = (*maybe_tx_json)["status"].get<std::string_view>();
-                    return static_cast<bool>(utils::fromHexStringToUint64(statusHex));
+                    return static_cast<bool>(utils::hexStringToU64(statusHex));
                 }
                 return std::nullopt;
             },
@@ -458,7 +458,7 @@ uint64_t Provider::gasUsed(std::string_view txHash, std::chrono::milliseconds ti
 
                     // Parse the status from the hex string
                     auto gasUsed = (*maybe_tx_json)["gasUsed"].get<std::string_view>();
-                    return utils::fromHexStringToUint64(gasUsed);
+                    return utils::hexStringToU64(gasUsed);
                 }
                 return std::nullopt;
             },
