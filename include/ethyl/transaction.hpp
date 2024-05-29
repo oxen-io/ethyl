@@ -9,11 +9,10 @@ namespace ethyl
 {
 struct Signature
 {
+    bool init = false;
     uint64_t signatureYParity = 0;
     Bytes32 signatureR;
     Bytes32 signatureS;
-
-    bool isEmpty() const;
     void set(ECDSACompactSignature const &signature);
 };
 

@@ -34,7 +34,7 @@ std::vector<unsigned char> Transaction::serialize() const {
     // Access list not going to use
     arr.push_back(std::vector<uint64_t>{});
 
-    if (!sig.isEmpty()) {
+    if (sig.init) {
         arr.push_back(sig.signatureYParity);
         arr.push_back(oxenc::rlp_big_integer(sig.signatureR));
         arr.push_back(oxenc::rlp_big_integer(sig.signatureS));
@@ -66,17 +66,11 @@ std::string Transaction::hashAsHex() const {
     return result;
 }
 
-bool Signature::isEmpty() const {
-  static constexpr Bytes32 zero = {};
-  bool result =
-      signatureYParity == 0 && signatureR == zero && signatureS == zero;
-  return result;
-}
-
 void Signature::set(const ECDSACompactSignature& signature) {
     assert(signature.max_size() == 65);
     std::memcpy(signatureR.data(), &signature[0],  32);
     std::memcpy(signatureS.data(), &signature[32], 32);
     signatureYParity = static_cast<unsigned char>(signature[signature.max_size() - 1]);
+    init = true;
 }
 }  // namespace ethyl
