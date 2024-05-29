@@ -3,6 +3,8 @@
 
 #include <oxenc/rlp_serialize.h>
 
+namespace ethyl
+{
 /**
 * Returns the raw Bytes of the EIP-1559 transaction, in order.
 *
@@ -59,3 +61,4 @@ void Signature::fromHex(std::string_view hex_str) {
     std::memcpy(signatureS.data(), bytes.data() + 32, 32);
     signatureYParity = bytes[64];
 }
+}  // namespace ethyl

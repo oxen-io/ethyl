@@ -52,7 +52,7 @@ int ecdsa() {
     secp256k1_ecdsa_signature sig;
     /* Before we can call actual API functions, we need to create a "context". */
     secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
-    if (!fill_random(randomize, sizeof(randomize))) {
+    if (!ethyl_fill_random(randomize, sizeof(randomize))) {
         printf("Failed to generate randomness\n");
         return 1;
     }
@@ -68,7 +68,7 @@ int ecdsa() {
      * order), we try to sample a new key. Note that the probability of this
      * happening is negligible. */
     while (1) {
-        if (!fill_random(seckey, sizeof(seckey))) {
+        if (!ethyl_fill_random(seckey, sizeof(seckey))) {
             printf("Failed to generate randomness\n");
             return 1;
         }
@@ -147,7 +147,7 @@ int ecdsa() {
      *
      * Here we are preventing these writes from being optimized out, as any good compiler
      * will remove any writes that aren't used. */
-    secure_erase(seckey, sizeof(seckey));
+    ethyl_secure_erase(seckey, sizeof(seckey));
 
     return 0;
 }

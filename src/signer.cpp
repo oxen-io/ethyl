@@ -15,7 +15,7 @@ namespace ethyl
 Signer::Signer() {
     ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
     unsigned char randomize[32];
-    if (!fill_random(randomize, sizeof(randomize))) {
+    if (!ethyl_fill_random(randomize, sizeof(randomize))) {
         throw std::runtime_error("Failed to generate randomness");
     }
     if (!secp256k1_context_randomize(ctx, randomize))
@@ -33,7 +33,7 @@ std::pair<std::vector<unsigned char>, std::vector<unsigned char>> Signer::genera
     secp256k1_pubkey pubkey;
 
     while (1) {
-        if (!fill_random(seckey, sizeof(seckey))) {
+        if (!ethyl_fill_random(seckey, sizeof(seckey))) {
             throw std::runtime_error("Failed to generate randomness");
         }
         if (secp256k1_ec_seckey_verify(ctx, seckey)) {

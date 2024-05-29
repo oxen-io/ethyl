@@ -13,7 +13,7 @@
 #include <oxenc/common.h>
 #include <oxenc/hex.h>
 
-namespace utils
+namespace ethyl::utils
 {
     enum class PaddingDirection {
         LEFT,
@@ -106,6 +106,4 @@ namespace utils
     std::string getFunctionSignature(std::string_view function);
 
     std::string trimAddress(const std::string& address);
-
-// END
-}
+}  // namespace ethyl::utils

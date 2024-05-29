@@ -4,6 +4,8 @@
 #include <vector>
 #include <cstdint>
 
+namespace ethyl
+{
 struct Signature {
     uint64_t signatureYParity = 0;
     std::vector<unsigned char> signatureR = {};
@@ -35,3 +37,4 @@ public:
     std::string hash() const;
 
 };
+}  // namespace ethyl

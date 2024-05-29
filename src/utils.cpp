@@ -12,6 +12,8 @@ extern "C" {
 #include "crypto/keccak.h"
 }
 
+namespace ethyl
+{
 std::string utils::decimalToHex(uint64_t decimal, bool prefixed_0x) {
     char buf[22];
     if (prefixed_0x) {
@@ -113,3 +115,4 @@ std::string utils::trimAddress(const std::string& address) {
     // Trim and return the address
     return "0x" + address.substr(firstNonZero, 40);
 }
+};  // namespace ethyl

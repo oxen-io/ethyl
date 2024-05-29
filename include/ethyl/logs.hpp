@@ -5,6 +5,8 @@
 #include <vector>
 #include <optional>
 
+namespace ethyl
+{
 struct LogEntry {
     std::string address; // Address from which this log originated
     std::vector<std::string> topics; // Array of 0-4 32-byte data of indexed log arguments
@@ -16,3 +18,4 @@ struct LogEntry {
     std::optional<uint32_t> logIndex; // Index of the log in the block (optional)
     bool removed; // True if log was removed due to a chain reorganization
 };
+}  // namespace ethyl
