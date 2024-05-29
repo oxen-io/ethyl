@@ -15,20 +15,10 @@
 
 namespace utils
 {
-
     enum class PaddingDirection {
         LEFT,
         RIGHT
     };
-
-    template <typename Container>
-    std::string toHexString(const Container& bytes) {
-        std::ostringstream oss;
-        for(const auto byte : bytes) {
-            oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(static_cast<unsigned char>(byte));
-        }                                                                                                                     
-        return oss.str();                                                                                                     
-    }
 
     template <typename Container>
     std::string toHexStringBigEndian(const Container& bytes) {
@@ -47,6 +37,7 @@ namespace utils
     template <basic_char Char = unsigned char>
     std::vector<Char> fromHexString(std::string_view hexStr) {
         hexStr = trimPrefix(hexStr, "0x");
+        hexStr = trimPrefix(hexStr, "0X");
 
         if (!oxenc::is_hex(hexStr))
             throw std::invalid_argument{"input string is not hex"};
@@ -102,9 +93,17 @@ namespace utils
         return true;
     }
 
-    std::array<unsigned char, 32> hash(std::string_view in);
+    /// Hashes a hex string into a 32-byte hash using keccak by first converting the hex to bytes.
+    /// The hex string is allowed to start with '0x' and '0X'. Passing bytes to this function will
+    /// throw an `invalid_argument` exception.
+    std::array<unsigned char, 32> hashHex(std::string_view hex);
 
-    std::string getFunctionSignature(const std::string& function);
+    /// Hash the bytes into a 32-byte hash using keccak.
+    std::array<unsigned char, 32> hash_(std::string_view bytes);
+
+    /// Get the function signature for Ethereum contract interaction via an ABI
+    /// call
+    std::string getFunctionSignature(std::string_view function);
 
     std::string trimAddress(const std::string& address);
 

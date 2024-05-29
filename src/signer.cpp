@@ -68,14 +68,14 @@ std::array<unsigned char, 20> Signer::secretKeyToAddress(std::span<const unsigne
     }
 
     // Serialize the public key in uncompressed form.
-    std::array<unsigned char, 65> pub;
-    size_t pub_len = 65;
+    std::array<unsigned char, 1 /*header byte 0x04*/ + sizeof(secp256k1_pubkey)> pub;
+    size_t pub_len = pub.max_size();
     secp256k1_ec_pubkey_serialize(ctx, pub.data(), &pub_len, &pubkey, SECP256K1_EC_UNCOMPRESSED);
 
-    std::string_view pub_string{reinterpret_cast<const char*>(pub.data()), pub.size()};
-    // Skip the type byte.
-    pub_string.remove_prefix(1);
-    auto hashed_pub = utils::hash(pub_string);
+    // Skip the type byte by trimming the header byte (0x04)
+    std::string_view pub_string =
+            std::string_view(reinterpret_cast<const char*>(pub.data()) + 1, pub.size() - 1);
+    std::array<unsigned char, 32> hashed_pub = utils::hash_(pub_string);
 
     // The last 20 bytes of the Keccak-256 hash of the public key in hex is the address.
     std::array<unsigned char, 20> result = {};
@@ -85,10 +85,7 @@ std::array<unsigned char, 20> Signer::secretKeyToAddress(std::span<const unsigne
 
 std::string Signer::secretKeyToAddressString(std::span<const unsigned char> seckey) {
     std::array<unsigned char, 20> address = secretKeyToAddress(seckey);
-    std::string                   result  = {};
-    result.reserve(2 + (address.max_size() * 2));
-    result += "0x";
-    result += utils::toHexString(address);
+    std::string                   result  = "0x" + oxenc::to_hex(address.begin(), address.end());
     return result;
 }
 
@@ -121,7 +118,9 @@ std::vector<unsigned char> Signer::sign(const std::array<unsigned char, 32>& has
 }
 
 std::vector<unsigned char> Signer::sign(std::string_view hash, std::span<const unsigned char> seckey) {
-    return sign(utils::fromHexString32Byte(hash), seckey);
+    std::array<unsigned char, 32> hash32 = utils::fromHexString32Byte(hash);
+    std::vector<unsigned char> result = sign(hash32, seckey);
+    return result;
 }
 
 void Signer::populateTransaction(Transaction& tx, std::string sender_address) {
@@ -161,14 +160,15 @@ void Signer::populateTransaction(Transaction& tx, std::string sender_address) {
 
 // Hash the message and sign
 std::vector<unsigned char> Signer::signMessage(std::string_view message, std::span<const unsigned char> seckey) {
-    return sign(utils::hash(message), seckey);
+    std::vector<unsigned char> result = sign(utils::hash_(message), seckey);
+    return result;
 }
 
 // Hash the transaction and sign
 std::string Signer::signTransaction(Transaction& txn, std::span<const unsigned char> seckey) {
-    const auto signature_hex = utils::toHexString(sign(txn.hash(), seckey));
+    std::vector<unsigned char> signed_tx_hash = sign(txn.hash(), seckey);
+    const auto signature_hex = oxenc::to_hex(signed_tx_hash.begin(), signed_tx_hash.end());
     txn.sig.fromHex(signature_hex);
-
     return txn.serialized();
 }
 
@@ -177,9 +177,10 @@ std::string Signer::sendTransaction(Transaction& txn, std::span<const unsigned c
     const auto senders_address = secretKeyToAddressString(seckey);
 
     populateTransaction(txn, senders_address);
-    const auto signature_hex = utils::toHexString(sign(txn.hash(), seckey));
+    std::vector<unsigned char> hash = sign(txn.hash(), seckey);
+    const auto signature_hex = oxenc::to_hex(hash.begin(), hash.end());
     txn.sig.fromHex(signature_hex);
-    const auto hash = provider.sendTransaction(txn);
-    return hash;
+    const auto result = provider.sendTransaction(txn);
+    return result;
 }
 }; // namespace ethyl
