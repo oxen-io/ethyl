@@ -38,11 +38,15 @@ std::string_view utils::trimLeadingZeros(std::string_view src) {
 }
 
 uint64_t utils::hexStringToU64(std::string_view hexStr) {
+    hexStr = trimPrefix(hexStr, "0x");
+    hexStr = trimPrefix(hexStr, "0X");
+    hexStr = trimLeadingZeros(hexStr);
+
     uint64_t val;
-    if (parseInt(trimPrefix(hexStr, "0x"), val, 16))
+    if (parseInt(hexStr, val, 16))
         return val;
 
-    throw std::invalid_argument{"failed to parse integer from hex input"};
+    throw std::invalid_argument{"failed to parse integer from hex input: " + std::string(hexStr)};
 }
 
 template std::vector<char> utils::fromHexString<char>(std::string_view);
