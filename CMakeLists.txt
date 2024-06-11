@@ -48,10 +48,8 @@ endif()
 
 # Find all headers and implementation files
 include(cmake/SourcesAndHeaders.cmake)
-if(${PROJECT_NAME}_ENABLE_CRYPTO_LIBRARY)
-    add_subdirectory(src/crypto)
-endif()
 add_subdirectory(external)
+add_subdirectory(src/ethyl-keccak)
 
 add_library(
     ${PROJECT_NAME}
@@ -99,8 +97,8 @@ target_link_libraries(
     secp256k1
     nlohmann_json::nlohmann_json
     oxenc::oxenc
+    ethyl-keccak
   PRIVATE
-    cncrypto
     gmp
     gmpxx
 )

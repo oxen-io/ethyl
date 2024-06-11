@@ -62,7 +62,7 @@ Bytes32 utils::hashHex(std::string_view hex) {
 
 Bytes32 utils::hashBytesPtr(const void *bytes, size_t size) {
   Bytes32 result;
-  keccak(reinterpret_cast<const uint8_t*>(bytes), size, result.data(), static_cast<int>(result.max_size()));
+  keccak(reinterpret_cast<const uint8_t*>(bytes), size, result.data(), result.max_size());
   return result;
 }
 

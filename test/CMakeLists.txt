@@ -15,7 +15,6 @@ foreach(file ${test_sources})
       PRIVATE
         Catch2::Catch2WithMain
         ${CMAKE_PROJECT_NAME}
-        cncrypto
         cpr::cpr
     )
     target_include_directories(
