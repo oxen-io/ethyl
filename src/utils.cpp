@@ -12,6 +12,8 @@ extern "C" {
 #include "crypto/keccak.h"
 }
 
+namespace ethyl
+{
 std::string utils::decimalToHex(uint64_t decimal, bool prefixed_0x) {
     char buf[22];
     if (prefixed_0x) {
@@ -35,12 +37,16 @@ std::string_view utils::trimLeadingZeros(std::string_view src) {
     return src;
 }
 
-uint64_t utils::fromHexStringToUint64(std::string_view hexStr) {
+uint64_t utils::hexStringToU64(std::string_view hexStr) {
+    hexStr = trimPrefix(hexStr, "0x");
+    hexStr = trimPrefix(hexStr, "0X");
+    hexStr = trimLeadingZeros(hexStr);
+
     uint64_t val;
-    if (parseInt(trimPrefix(hexStr, "0x"), val, 16))
+    if (parseInt(hexStr, val, 16))
         return val;
 
-    throw std::invalid_argument{"failed to parse integer from hex input"};
+    throw std::invalid_argument{"failed to parse integer from hex input: " + std::string(hexStr)};
 }
 
 template std::vector<char> utils::fromHexString<char>(std::string_view);
@@ -48,28 +54,33 @@ template std::vector<unsigned char> utils::fromHexString<unsigned char>(std::str
 template std::array<char, 32> utils::fromHexString32Byte<char>(std::string_view);
 template std::array<unsigned char, 32> utils::fromHexString32Byte<unsigned char>(std::string_view);
 
-std::array<unsigned char, 32> utils::hash(std::string_view in) {
-    std::vector<char> bytes;
-
-    // Check for "0x" prefix and if exists, convert the hex to bytes
-    if (in.starts_with("0x")) {
-        bytes = fromHexString<char>(in);
-        in = {bytes.data(), bytes.size()};
-    }
-    std::array<unsigned char, 32> hash;
-    keccak(reinterpret_cast<const uint8_t*>(in.data()), in.size(), hash.data(), 32);
-    return hash;
+Bytes32 utils::hashHex(std::string_view hex) {
+    std::vector<char> bytes = fromHexString<char>(hex);
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
+    return result;
 }
 
-// Function to get the function signature for Ethereum contract interaction
-std::string utils::getFunctionSignature(const std::string& function) {
-    std::array<unsigned char, 32> hash = utils::hash(function);
+Bytes32 utils::hashBytesPtr(const void *bytes, size_t size) {
+  Bytes32 result;
+  keccak(reinterpret_cast<const uint8_t*>(bytes), size, result.data(), result.max_size());
+  return result;
+}
 
-    // Convert the hash to hex string
-    std::string hashHex = toHexString(hash);
+Bytes32 utils::hashBytes(std::span<const char> bytes) {
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
+    return result;
+}
 
-    // Return the first 8 characters of the hex string (4 bytes) plus 0x prefix
-    return "0x" + hashHex.substr(0, 8);
+Bytes32 utils::hashBytes(std::span<const unsigned char> bytes) {
+    Bytes32 result = hashBytesPtr(bytes.data(), bytes.size());
+    return result;
+}
+
+std::string utils::toEthFunctionSignature(std::string_view function) {
+    Bytes32 hash = utils::hashBytes(std::span(reinterpret_cast<const unsigned char *>(function.data()), function.size()));
+    std::string hashHex = oxenc::to_hex(hash.begin(), hash.end());
+    std::string result = "0x" + hashHex.substr(0, 8); // Return the first 8 characters of the hex string (4 bytes) plus 0x prefix
+    return result;
 }
 
 std::string utils::padToNBytes(
@@ -117,3 +128,4 @@ std::string utils::trimAddress(const std::string& address) {
     // Trim and return the address
     return "0x" + address.substr(firstNonZero, 40);
 }
+};  // namespace ethyl
