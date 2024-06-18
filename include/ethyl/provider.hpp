@@ -37,7 +37,7 @@ struct Client {
     cpr::Url url;
 };
 
-struct Provider {
+struct Provider : public std::enable_shared_from_this<Provider> {
     /** Add a RPC backend for interacting with the Ethereum network.
      *
      * The provider does not ensure that no duplicates are added to the list.
@@ -49,6 +49,9 @@ struct Provider {
      * @returns True if the client was added successfully. False if the `url`
      * was not set.
      */
+    Provider(std::chrono::milliseconds request_timeout = 3s);
+    ~Provider();
+
     bool addClient(std::string name, std::string url);
 
     bool connectToNetwork();
@@ -89,10 +92,12 @@ struct Provider {
     /// attempted.
     std::vector<Client>                      clients;
 
-    /// How long the provider is to attempt a connection to the client when
-    /// sending a request to it. If no value is set, the default connect timeout
-    /// of CURL is used which is currently 300 seconds.
-    std::optional<std::chrono::milliseconds> connectTimeout;
+    uint64_t next_request_id{0};
+    std::map<uint64_t, std::pair<cpr::AsyncWrapper<cpr::Response>, std::function<void(std::optional<cpr::Response>)>>> pending_requests;
+    std::unique_ptr<std::thread> response_thread;
+    std::condition_variable response_cv;
+    std::queue<uint64_t> pending_responses;
+    bool running{true};
 
 private:
     /**
@@ -106,9 +111,8 @@ private:
      * failure.
      */
     cpr::Response makeJsonRpcRequest(std::string_view method,
-                                     const nlohmann::json& params,
-                                     std::optional<std::chrono::milliseconds> timeout);
-    cpr::Session session;
+                                     const nlohmann::json& params);
+    std::shared_ptr<cpr::Session> session = std::make_shared<cpr::Session>();
     std::mutex mutex;
 };
 }; // namespace ethyl

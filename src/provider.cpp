@@ -18,6 +18,55 @@
 
 namespace ethyl
 {
+
+Provider::Provider(std::chrono::milliseconds request_timeout)
+{
+    response_thread = std::make_unique<std::thread>([this](){
+        while (running)
+        {
+            std::unique_lock lk{mutex};
+            response_cv.wait(lk, [this](){ return pending_responses.size() or (not running); });
+            if (not running) break;
+
+            std::vector<decltype(pending_requests)::mapped_type> futures;
+            while (pending_responses.size())
+            {
+                auto id = pending_responses.front();
+                pending_responses.pop();
+                auto fut_itr = pending_requests.find(id);
+                assert(fut_itr != pending_requests.end());
+                futures.push_back(std::move(fut_itr->second));
+                pending_requests.erase(fut_itr);
+            }
+            lk.unlock();
+            for (auto& fut : futures)
+            {
+                try
+                {
+                    fut.second(fut.first.get());
+                }
+                catch (const std::exception& e)
+                {
+                    //TODO: log exception (once logger is set up in this project)
+                    fut.second(std::nullopt);
+                }
+            }
+        }
+    });
+    session->SetOption(cpr::Timeout(request_timeout));
+}
+
+Provider::~Provider()
+{
+    {
+        std::lock_guard lk{mutex};
+        running = false;
+    }
+    response_cv.notify_one();
+    assert(response_thread && response_thread->joinable());
+    response_thread->join();
+}
+
 bool Provider::addClient(std::string name, std::string url) {
     bool result = url.size();
     if (result) {
@@ -28,7 +77,7 @@ bool Provider::addClient(std::string name, std::string url) {
 
 bool Provider::connectToNetwork() {
     // Here we can verify connection by calling some simple JSON RPC method like `net_version`
-    auto response = makeJsonRpcRequest("net_version", cpr::Body("{}"), connectTimeout);
+    auto response = makeJsonRpcRequest("net_version", cpr::Body("{}"));
     bool result   = response.status_code == 200;
     if (result) {
         std::cout << "Connected to the Ethereum network.\n";
@@ -44,8 +93,7 @@ void Provider::disconnectFromNetwork() {
 }
 
 cpr::Response Provider::makeJsonRpcRequest(std::string_view method,
-                                           const nlohmann::json& params,
-                                           std::optional<std::chrono::milliseconds> timeout) {
+                                           const nlohmann::json& params) {
     if (clients.empty()) {
       throw std::runtime_error(
           "No clients were set for the provider. Ensure that a client was "
@@ -59,24 +107,54 @@ cpr::Response Provider::makeJsonRpcRequest(std::string_view method,
     bodyJson["id"]      = 1;
     cpr::Body body(bodyJson.dump());
 
-    cpr::Response result = {};
-
-    std::lock_guard lock{mutex};
-    session.SetBody(body);
-    session.SetHeader({{"Content-Type", "application/json"}});
-    if (timeout) {
-        session.SetOption(cpr::ConnectTimeout(*timeout));
+    {
+        std::lock_guard lock{mutex};
+        session->SetBody(body);
+        session->SetHeader({{"Content-Type", "application/json"}});
     }
 
+    cpr::Response result;
     // NOTE: Try the request across clients one-by-one until we succeed.
     for (const Client& client : clients) {
-        session.SetUrl(client.url);
-        result = session.Post();
+        std::unique_lock lock{mutex};
+        session->SetUrl(client.url);
+        auto req_id = next_request_id++;
+        auto result_future = session->PostCallback([self=weak_from_this(), req_id](cpr::Response r){
+            if (auto ptr = self.lock())
+            {
+                bool running = false;
+                {
+                    std::lock_guard lk{ptr->mutex};
+                    running = ptr->running;
+                    if (not running)
+                        return r;
+
+                    ptr->pending_responses.push(req_id);
+                }
+                ptr->response_cv.notify_one();
+                return r;
+            }
+            return r;
+        });
+
+        std::promise<std::optional<cpr::Response>> p;
+        auto p_fut = p.get_future();
+        auto cb = [&p](std::optional<cpr::Response> r){
+            p.set_value(std::move(r));
+        };
+        auto req_pair = std::make_pair(std::move(result_future), std::move(cb));
+        pending_requests.emplace(req_id, std::move(req_pair));
+        lock.unlock();
+
+        auto maybe_result = p_fut.get();
+        if (not maybe_result)
+            continue;
 
         // TODO(doyle): It is worth it in the future to give stats on which
         // client failed and return it to the caller so that they can have some
         // mitigation strategy when a client is frequently failing.
-        if (result.error.code == cpr::ErrorCode::OK) {
+        if (maybe_result->error.code == cpr::ErrorCode::OK) {
+            result = std::move(*maybe_result);
             break;
         }
     }
@@ -92,7 +170,7 @@ nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std:
     params[0]["to"]        = callData.contractAddress;
     params[0]["data"]      = callData.data;
     params[1]              = blockNumber; // use the provided block number or default to "latest"
-    cpr::Response response = makeJsonRpcRequest("eth_call", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("eth_call", params);
 
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
@@ -127,7 +205,7 @@ std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t bl
 uint32_t Provider::getNetworkChainId() {
     // Make the request takes no params
     nlohmann::json params = nlohmann::json::array();
-    cpr::Response response = makeJsonRpcRequest("net_version", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("net_version", params);
 
     if (response.status_code == 200) {
         // Parse the response
@@ -151,7 +229,7 @@ uint32_t Provider::getNetworkChainId() {
 
 std::string Provider::evm_snapshot() {
     nlohmann::json params = nlohmann::json::array();
-    cpr::Response response = makeJsonRpcRequest("evm_snapshot", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("evm_snapshot", params);
 
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
@@ -167,7 +245,7 @@ bool Provider::evm_revert(std::string_view snapshotId) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(snapshotId);
 
-    cpr::Response response = makeJsonRpcRequest("evm_revert", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("evm_revert", params);
 
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
@@ -181,7 +259,7 @@ uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(seconds.count());
 
-    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
     if (response.status_code != 200) {
         throw std::runtime_error("Unable to set time");
     }
@@ -195,7 +273,7 @@ uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
     } else if (responseJson["result"].is_null()) {
         throw std::runtime_error("Null result in response");
     }
-    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array(), connectTimeout);
+    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
     if (response.status_code != 200) {
         throw std::runtime_error("Unable to set time");
     }
@@ -220,7 +298,7 @@ uint64_t Provider::getTransactionCount(std::string_view address, std::string_vie
     params.push_back(blockTag);
 
     // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionCount", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("eth_getTransactionCount", params);
 
     if (response.status_code == 200) {
         // Parse the response
@@ -248,7 +326,7 @@ std::optional<nlohmann::json> Provider::getTransactionByHash(std::string_view tr
     params.push_back(transactionHash);
 
     // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionByHash", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("eth_getTransactionByHash", params);
 
     if (response.status_code == 200) {
         // Parse the response
@@ -273,7 +351,7 @@ std::optional<nlohmann::json> Provider::getTransactionReceipt(std::string_view t
     params.push_back(transactionHash);
 
     // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionReceipt", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("eth_getTransactionReceipt", params);
 
     if (response.status_code == 200) {
         // Parse the response
@@ -304,7 +382,7 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, st
     params.push_back(params_data);
 
     // Make the RPC call
-    cpr::Response response = makeJsonRpcRequest("eth_getLogs", params, connectTimeout);
+    cpr::Response response = makeJsonRpcRequest("eth_getLogs", params);
 
     if (response.status_code == 200) {
         // Parse the response
@@ -355,7 +433,7 @@ std::string Provider::getContractStorageRoot(std::string_view address, std::stri
     params.push_back(storage_keys);
     params.push_back(blockNumber);
 
-    auto response = makeJsonRpcRequest("eth_getProof", params, connectTimeout);
+    auto response = makeJsonRpcRequest("eth_getProof", params);
     if(response.status_code != 200)
         throw std::runtime_error("Failed to call eth_getProof: " + response.text + " params: " + params.dump());
 
@@ -404,7 +482,7 @@ std::string Provider::sendUncheckedTransaction(const Transaction& signedTx) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back("0x" + signedTx.serializeAsHex());
     
-    auto response = makeJsonRpcRequest("eth_sendRawTransaction", params, connectTimeout);
+    auto response = makeJsonRpcRequest("eth_sendRawTransaction", params);
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
 
@@ -470,7 +548,7 @@ std::string Provider::getBalance(std::string_view address) {
     params.push_back(address);
     params.push_back("latest");
     
-    auto response = makeJsonRpcRequest("eth_getBalance", params, connectTimeout);
+    auto response = makeJsonRpcRequest("eth_getBalance", params);
     if (response.status_code == 200) {
         nlohmann::json responseJson = nlohmann::json::parse(response.text);
 
@@ -493,7 +571,7 @@ std::string Provider::getContractDeployedInLatestBlock() {
     nlohmann::json params = nlohmann::json::array();
     params.push_back("latest");
     params.push_back(true);
-    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params, connectTimeout);
+    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
     if (blockResponse.status_code != 200)
         throw std::runtime_error("Failed to get the latest block");
     nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
@@ -510,7 +588,7 @@ std::string Provider::getContractDeployedInLatestBlock() {
 
 uint64_t Provider::getLatestHeight() {
     nlohmann::json params = nlohmann::json::array();
-    auto blockResponse = makeJsonRpcRequest("eth_blockNumber", params, connectTimeout);
+    auto blockResponse = makeJsonRpcRequest("eth_blockNumber", params);
     if (blockResponse.status_code != 200) {
         throw std::runtime_error("Failed to get the latest height");
     }
@@ -524,7 +602,7 @@ FeeData Provider::getFeeData() {
     nlohmann::json params = nlohmann::json::array();
     params.push_back("latest");
     params.push_back(true);
-    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params, connectTimeout);
+    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
     if (blockResponse.status_code != 200) {
         throw std::runtime_error("Failed to call get block by number for latest block for baseFeePerGas");
     }
@@ -533,7 +611,7 @@ FeeData Provider::getFeeData() {
     
     // Get gas price
     params = nlohmann::json::array();
-    auto gasPriceResponse = makeJsonRpcRequest("eth_gasPrice", params, connectTimeout);
+    auto gasPriceResponse = makeJsonRpcRequest("eth_gasPrice", params);
     if (gasPriceResponse.status_code != 200) {
         throw std::runtime_error("Failed to get gas price");
     }
