@@ -163,6 +163,31 @@ std::string Provider::evm_snapshot() {
     throw std::runtime_error("Unable to create snapshot");
 }
 
+bool Provider::evm_setAutomine(bool enable) {
+    nlohmann::json params = nlohmann::json::array();
+    params.push_back(enable);
+    cpr::Response response = makeJsonRpcRequest("evm_setAutomine", params, connectTimeout);
+
+    if (response.status_code == 200) {
+        nlohmann::json responseJson = nlohmann::json::parse(response.text);
+        return !responseJson["result"].is_null();
+    }
+
+    throw std::runtime_error("Unable to set evm_setAutomine value");
+}
+
+bool Provider::evm_mine() {
+    nlohmann::json params = nlohmann::json::array();
+    cpr::Response response = makeJsonRpcRequest("evm_mine", params, connectTimeout);
+
+    if (response.status_code == 200) {
+        nlohmann::json responseJson = nlohmann::json::parse(response.text);
+        return !responseJson["result"].is_null();
+    }
+
+    throw std::runtime_error("Unable to evm_mine");
+}
+
 bool Provider::evm_revert(std::string_view snapshotId) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(snapshotId);

@@ -59,11 +59,20 @@ struct Provider {
     std::string    callReadFunction(const ReadCallData& callData, std::string_view blockNumber = "latest");
     std::string    callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
 
-    uint32_t getNetworkChainId();
+    uint32_t    getNetworkChainId();
     std::string evm_snapshot();
-    bool evm_revert(std::string_view snapshotId);
 
-    uint64_t evm_increaseTime(std::chrono::seconds seconds);
+    // Enables or disables, based on the single boolean argument, the automatic
+    // mining of new blocks with each new transaction submitted to the network.
+    // You can use hardhat_getAutomine to get the current value.
+    bool        evm_setAutomine(bool enable);
+
+    // Force a block to be mined. Takes no parameters. Mines a block independent
+    // of whether or not mining is started or stopped.
+    bool        evm_mine();
+
+    bool        evm_revert(std::string_view snapshotId);
+    uint64_t    evm_increaseTime(std::chrono::seconds seconds);
 
     std::optional<nlohmann::json> getTransactionByHash(std::string_view transactionHash);
     std::optional<nlohmann::json> getTransactionReceipt(std::string_view transactionHash);
