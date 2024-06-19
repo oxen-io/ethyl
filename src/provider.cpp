@@ -341,6 +341,18 @@ void Provider::evm_snapshot_async(json_result_callback cb) {
     makeJsonRpcRequest("evm_snapshot", params, std::move(cb));
 }
 
+bool Provider::evm_setAutomine(bool enable) {
+    nlohmann::json params = nlohmann::json::array();
+    params.push_back(enable);
+    std::optional<nlohmann::json> result = makeJsonRpcRequest("evm_setAutomine", params);
+    return result.has_value();
+}
+
+bool Provider::evm_mine() {
+    std::optional<nlohmann::json> result = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
+    return result.has_value();
+}
+
 bool Provider::evm_revert(std::string_view snapshotId) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(snapshotId);
