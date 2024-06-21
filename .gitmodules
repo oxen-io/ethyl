@@ -13,3 +13,6 @@
 [submodule "external/oxen-encoding"]
 	path = external/oxen-encoding
 	url = https://github.com/oxen-io/oxen-encoding.git
+[submodule "external/oxen-logging"]
+	path = external/oxen-logging
+	url = https://github.com/oxen-io/oxen-logging.git

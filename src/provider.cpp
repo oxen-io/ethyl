@@ -11,13 +11,44 @@
 #include <nlohmann/json.hpp>
 #pragma GCC diagnostic pop
 
+#include <oxen/log.hpp>
+
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"
 
 #include <gmpxx.h>
 
+namespace
+{
+auto logcat = oxen::log::Cat("ethyl");
+}
+
 namespace ethyl
 {
+namespace log = oxen::log;
+
+template<typename T = nlohmann::json>
+struct JsonResultWaiter
+{
+    std::promise<std::optional<T>> p;
+    std::future<std::optional<T>> fut;
+    JsonResultWaiter() : fut{p.get_future()} {}
+
+    Provider::optional_callback<T> cb() {
+        return [this](std::optional<T> r) {
+            p.set_value(r);
+        };
+    }
+
+    auto get() { return fut.get(); }
+};
+
+// also thrown if Provider goes away before the request completes
+class RequestCancelled : public std::runtime_error
+{
+public:
+    RequestCancelled() : std::runtime_error{"json rpc request cancelled (or requester gone)"} {}
+};
 
 Provider::Provider(std::chrono::milliseconds request_timeout)
 {
@@ -43,11 +74,16 @@ Provider::Provider(std::chrono::milliseconds request_timeout)
             {
                 try
                 {
+                    log::trace(logcat, "Firing callback for finished json rpc request");
                     fut.second(fut.first.get());
+                }
+                catch (const RequestCancelled& e)
+                {
+                    log::trace(logcat, "{}", e.what());
                 }
                 catch (const std::exception& e)
                 {
-                    //TODO: log exception (once logger is set up in this project)
+                    log::warning(logcat, "Exception from json rpc request: {}", e.what());
                     fut.second(std::nullopt);
                 }
             }
@@ -67,33 +103,66 @@ Provider::~Provider()
     response_thread->join();
 }
 
-bool Provider::addClient(std::string name, std::string url) {
-    bool result = url.size();
-    if (result) {
-        clients.emplace_back(Client{std::move(name), std::move(url)});
-    }
-    return result;
+void Provider::addClient(std::string name, std::string url) {
+    // TODO: actually validate the url in some meaningful way
+    if (url.empty())
+        throw std::invalid_argument{"Provider URL is empty."};
+    std::lock_guard lk{mutex};
+    clients.emplace_back(Client{std::move(name), std::move(url)});
 }
 
 bool Provider::connectToNetwork() {
     // Here we can verify connection by calling some simple JSON RPC method like `net_version`
-    auto response = makeJsonRpcRequest("net_version", cpr::Body("{}"));
-    bool result   = response.status_code == 200;
+    auto result = makeJsonRpcRequest("net_version", cpr::Body("{}"));
     if (result) {
-        std::cout << "Connected to the Ethereum network.\n";
+        log::debug(logcat, "Connected to the Ethereum network.");
     } else {
-        std::cout << "Failed to connect to the Ethereum network.\n";
+        log::warning(logcat, "Failed to connect to the Ethereum network.");
     }
-    return result;
+    return bool(result);
 }
 
 void Provider::disconnectFromNetwork() {
-    // Code to disconnect from Ethereum network
-    std::cout << "Disconnected from the Ethereum network.\n";
+    // TODO: Code to disconnect from Ethereum network
+    log::debug(logcat, "Disconnected from the Ethereum network.");
 }
 
-cpr::Response Provider::makeJsonRpcRequest(std::string_view method,
-                                           const nlohmann::json& params) {
+std::optional<nlohmann::json> get_json_result(const cpr::Response& r)
+{
+    log::debug(logcat, "get_json_result");
+    if (r.status_code != 200)
+    {
+        log::debug(logcat, "http request returned status code {} with message \"{}\"", r.status_code, r.error.message);
+        return std::nullopt;
+    }
+    try
+    {
+        log::trace(logcat, "parsing json rpc result");
+        auto responseJson = nlohmann::json::parse(r.text);
+        log::debug(logcat, "parsing json rpc result succeeded");
+        //if (!responseJson.contains("result") and not responseJson["result"].is_null()) {
+        if (not responseJson["result"].is_null()) {
+            log::debug(logcat, "returning parsed json result");
+            return std::move(responseJson["result"]);
+        }
+        log::warning(logcat, "json response missing \"result\" field (or is null), response: {}", responseJson.dump());
+        if (auto it = responseJson.find("error"); it != responseJson.end())
+        {
+            log::debug(logcat, "{}", responseJson.dump());
+            log::warning(logcat, "json error: {}", (*it)["message"].get<std::string_view>());
+        }
+    }
+    catch (const std::exception& e)
+    {
+        log::debug(logcat, "json response failed to parse: ", e.what());
+    }
+    return std::nullopt;
+}
+
+void Provider::makeJsonRpcRequest(std::string_view method,
+                                           const nlohmann::json& params,
+                                           json_result_callback cb) {
+    std::unique_lock lock{mutex};
     if (clients.empty()) {
       throw std::runtime_error(
           "No clients were set for the provider. Ensure that a client was "
@@ -105,88 +174,99 @@ cpr::Response Provider::makeJsonRpcRequest(std::string_view method,
     bodyJson["method"]  = method;
     bodyJson["params"]  = params;
     bodyJson["id"]      = 1;
+    log::debug(logcat, "making rpc request to {} with args {}", method, bodyJson["params"].dump());
     cpr::Body body(bodyJson.dump());
 
-    {
-        std::lock_guard lock{mutex};
-        session->SetBody(body);
-        session->SetHeader({{"Content-Type", "application/json"}});
-    }
+    session->SetBody(body);
+    session->SetHeader({{"Content-Type", "application/json"}});
 
-    cpr::Response result;
-    // NOTE: Try the request across clients one-by-one until we succeed.
-    for (const Client& client : clients) {
-        std::unique_lock lock{mutex};
-        session->SetUrl(client.url);
-        auto req_id = next_request_id++;
-        auto result_future = session->PostCallback([self=weak_from_this(), req_id](cpr::Response r){
-            if (auto ptr = self.lock())
+    // TODO(doyle): It is worth it in the future to give stats on which
+    // client failed and return it to the caller so that they can have some
+    // mitigation strategy when a client is frequently failing.
+    session->SetUrl(clients[0].url);
+    auto req_id = next_request_id++;
+    auto result_future = session->PostCallback([self=weak_from_this(), req_id, body](cpr::Response r){
+        log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
+
+        std::shared_ptr<Provider> ptr{nullptr};
+        std::optional<nlohmann::json> result_json;
+        size_t next_client = 0;
+        while (true)
+        {
+            next_client++;
+            ptr = self.lock();
+            if (not ptr)
+                throw RequestCancelled{};
+            std::unique_lock lk{ptr->mutex};
+            if (not ptr->running)
+                throw RequestCancelled{};
+
+            log::debug(logcat, "XXXXX 1");
+            if (result_json = get_json_result(r); !result_json)
             {
-                bool running = false;
-                {
-                    std::lock_guard lk{ptr->mutex};
-                    running = ptr->running;
-                    if (not running)
-                        return r;
-
-                    ptr->pending_responses.push(req_id);
-                }
-                ptr->response_cv.notify_one();
-                return r;
+                log::debug(logcat, "fail response message: {}", r.error.message);
+                continue;
             }
-            return r;
-        });
-
-        std::promise<std::optional<cpr::Response>> p;
-        auto p_fut = p.get_future();
-        auto cb = [&p](std::optional<cpr::Response> r){
-            p.set_value(std::move(r));
-        };
-        auto req_pair = std::make_pair(std::move(result_future), std::move(cb));
-        pending_requests.emplace(req_id, std::move(req_pair));
-        lock.unlock();
-
-        auto maybe_result = p_fut.get();
-        if (not maybe_result)
-            continue;
-
-        // TODO(doyle): It is worth it in the future to give stats on which
-        // client failed and return it to the caller so that they can have some
-        // mitigation strategy when a client is frequently failing.
-        if (maybe_result->error.code == cpr::ErrorCode::OK) {
-            result = std::move(*maybe_result);
-            break;
+            log::debug(logcat, "XXXXX 2");
+            if (ptr->clients.size() > next_client)
+            {
+                log::debug(logcat, "Trying fallback client index = {}", next_client);
+                ptr->session->SetBody(body);
+                ptr->session->SetHeader({{"Content-Type", "application/json"}});
+                ptr->session->SetUrl(ptr->clients[next_client].url);
+                auto fut = ptr->session->PostAsync();
+                lk.unlock();
+                r = fut.get();
+            }
+            else
+            {
+                log::debug(logcat, "All l2 providers failed request: {}", body.str());
+                break;
+            }
         }
-    }
+        log::debug(logcat, "XXXXX 3");
 
-    return result;
+        if (result_json)
+            log::debug(logcat, "makeJsonRpcRequest returning: {}", result_json->dump());
+        else
+            log::debug(logcat, "makeJsonRpcRequest returning: {{}}");
+
+        std::lock_guard lk{ptr->mutex};
+        ptr->pending_responses.push(req_id);
+        ptr->response_cv.notify_one();
+        return result_json;
+    });
+
+    auto req_pair = std::make_pair(std::move(result_future), std::move(cb));
+    pending_requests.emplace(req_id, std::move(req_pair));
+}
+
+std::optional<nlohmann::json> Provider::makeJsonRpcRequest(std::string_view method,
+                                 const nlohmann::json& params)
+{
+    JsonResultWaiter waiter;
+    makeJsonRpcRequest(method, params, waiter.cb());
+    return waiter.get();
 }
 
 nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber) {
-    nlohmann::json result = {};
+    JsonResultWaiter waiter;
+    callReadFunctionJSONAsync(callData, waiter.cb(), blockNumber);
+    auto result = waiter.get();
 
+    if (!result)
+        throw std::runtime_error{"Error in json rpc request \"eth_call\""};
+    return *result;
+}
+
+void Provider::callReadFunctionJSONAsync(const ReadCallData& callData, json_result_callback user_cb, std::string_view blockNumber) {
     // Prepare the params for the eth_call request
     nlohmann::json params  = nlohmann::json::array();
     params[0]["to"]        = callData.contractAddress;
     params[0]["data"]      = callData.data;
     params[1]              = blockNumber; // use the provided block number or default to "latest"
-    cpr::Response response = makeJsonRpcRequest("eth_call", params);
 
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-        if (!responseJson["result"].is_null()) {
-            result = responseJson["result"];
-            return result;
-        }
-    }
-
-    std::stringstream stream;
-    stream << "'eth_call' invoked on node for block '" << blockNumber
-           << "' to '" << callData.contractAddress
-           << "' with data payload '" << callData.data
-           << "' however it returned a response that does not have a result: "
-           << response.text;
-    throw std::runtime_error(stream.str());
+    makeJsonRpcRequest("eth_call", params, std::move(user_cb));
 }
 
 std::string Provider::callReadFunction(const ReadCallData& callData, std::string_view blockNumber) {
@@ -203,177 +283,171 @@ std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t bl
 }
 
 uint32_t Provider::getNetworkChainId() {
-    // Make the request takes no params
+    JsonResultWaiter<uint32_t> waiter;
+    getNetworkChainIdAsync(waiter.cb());
+    auto result = waiter.get();
+
+    if (!result)
+        throw std::runtime_error("Unable to get Network ID");
+    return *result;
+}
+
+void Provider::getNetworkChainIdAsync(optional_callback<uint32_t> user_cb)
+{
     nlohmann::json params = nlohmann::json::array();
-    cpr::Response response = makeJsonRpcRequest("net_version", params);
-
-    if (response.status_code == 200) {
-        // Parse the response
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        // Check if the result field is present and not null, if it exists then it contains the network id as a string
-        if (!responseJson["result"].is_null()) {
-            std::string network_id_string = responseJson["result"];
-            uint64_t network_id = std::stoull(network_id_string, nullptr, 10);
-            if (network_id > std::numeric_limits<uint32_t>::max()) {
-                throw std::runtime_error("Network ID does not fit into 32 bit unsigned integer");
-            } else {
-                return static_cast<uint32_t>(network_id);
-            }
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            user_cb(std::nullopt);
+            return;
         }
-    }
 
-    // If we couldn't get the network ID, throw an exception
-    throw std::runtime_error("Unable to get Network ID");
+        uint64_t network_id;
+        if (utils::parseInt(r->get<std::string>(), network_id))
+        {
+            if (network_id > std::numeric_limits<uint32_t>::max()) {
+                log::warning(logcat, "Network ID ({}) does not fit into 32 bit unsigned integer", network_id);
+                user_cb(std::nullopt);
+                return;
+            }
+            user_cb(static_cast<uint32_t>(network_id));
+            return;
+        }
+        log::warning(logcat, "Failed to parse Network ID from json rpc response.");
+        user_cb(std::nullopt);
+    };
+    makeJsonRpcRequest("net_version", params, std::move(cb));
 }
 
 std::string Provider::evm_snapshot() {
+    JsonResultWaiter waiter;
+    evm_snapshot_async(waiter.cb());
+    auto result = waiter.get();
+    if (!result)
+        throw std::runtime_error("Unable to create snapshot");
+    return *result;
+}
+
+void Provider::evm_snapshot_async(json_result_callback cb) {
     nlohmann::json params = nlohmann::json::array();
-    cpr::Response response = makeJsonRpcRequest("evm_snapshot", params);
-
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-        if (!responseJson["result"].is_null()) {
-            return responseJson["result"];
-        }
-    }
-
-    throw std::runtime_error("Unable to create snapshot");
+    makeJsonRpcRequest("evm_snapshot", params, std::move(cb));
 }
 
 bool Provider::evm_revert(std::string_view snapshotId) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(snapshotId);
 
-    cpr::Response response = makeJsonRpcRequest("evm_revert", params);
+    JsonResultWaiter waiter;
+    makeJsonRpcRequest("evm_revert", params, waiter.cb());
+    auto result = waiter.get();
 
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-        return !responseJson["result"].is_null();
-    }
-
-    throw std::runtime_error("Unable to revert to snapshot");
+    if (!result)
+        throw std::runtime_error("Unable to revert to snapshot");
+    return true;
 }
 
 uint64_t Provider::evm_increaseTime(std::chrono::seconds seconds) {
     nlohmann::json params = nlohmann::json::array();
     params.push_back(seconds.count());
 
-    cpr::Response response = makeJsonRpcRequest("evm_increaseTime", params);
-    if (response.status_code != 200) {
+    JsonResultWaiter waiter;
+    makeJsonRpcRequest("evm_increaseTime", params, waiter.cb());
+    auto result = waiter.get();
+
+    if (!result)
         throw std::runtime_error("Unable to set time");
-    }
-    nlohmann::json responseJson = nlohmann::json::parse(response.text);
-    if (!responseJson.contains("result") && responseJson.contains("error")) {
-        std::string errorMessage = "JSON RPC error: (evm_increaseTime)" + responseJson["error"]["message"].get<std::string>();
-        if (responseJson["error"].contains("data") && responseJson["error"]["data"].contains("message")) {
-            errorMessage += " - " + responseJson["error"]["data"]["message"].get<std::string>();
-        }
-        throw std::runtime_error(errorMessage);
-    } else if (responseJson["result"].is_null()) {
-        throw std::runtime_error("Null result in response");
-    }
-    response = makeJsonRpcRequest("evm_mine", nlohmann::json::array());
-    if (response.status_code != 200) {
+
+    JsonResultWaiter waiter2;
+    makeJsonRpcRequest("evm_mine", nlohmann::json::array(), waiter2.cb());
+    result = waiter2.get();
+    if (!result)
         throw std::runtime_error("Unable to set time");
-    }
-    nlohmann::json mineResponseJson = nlohmann::json::parse(response.text);
-    if (!mineResponseJson.contains("result") && mineResponseJson.contains("error")) {
-        std::string errorMessage = "JSON RPC error (evm_mine): " + mineResponseJson["error"]["message"].get<std::string>();
-        if (mineResponseJson["error"].contains("data") && mineResponseJson["error"]["data"].contains("message")) {
-            errorMessage += " - " + mineResponseJson["error"]["data"]["message"].get<std::string>();
-        }
-        throw std::runtime_error(errorMessage);
-    } else if (mineResponseJson["result"].is_null()) {
-        throw std::runtime_error("Null result in response");
-    }
-    std::string secondsHex = responseJson["result"];
+
+    std::string secondsHex = *result;
     return std::stoull(secondsHex, nullptr, 16);
 }
 
 
 uint64_t Provider::getTransactionCount(std::string_view address, std::string_view blockTag) {
+    JsonResultWaiter<uint64_t> waiter;
+    getTransactionCountAsync(address, blockTag, waiter.cb());
+    auto result = waiter.get();
+
+    if (!result)
+        throw std::runtime_error("Unable to get transaction count");
+    return *result;
+}
+
+void Provider::getTransactionCountAsync(std::string_view address, std::string_view blockTag, optional_callback<uint64_t> user_cb)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back(blockTag);
 
-    // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionCount", params);
-
-    if (response.status_code == 200) {
-        // Parse the response
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        // Check if the result field is present and not null
-        if (!responseJson["result"].is_null()) {
-            // Get the transaction count
-            std::string transactionCountHex = responseJson["result"];
-
-            // Convert the transaction count from hex to decimal
-            uint64_t transactionCount = std::stoull(transactionCountHex, nullptr, 16);
-
-            // Return the transaction count
-            return transactionCount;
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            user_cb(std::nullopt);
+            return;
         }
-    }
 
-    // If we couldn't get the transaction count, throw an exception
-    throw std::runtime_error("Unable to get transaction count");
+        try
+        {
+            uint64_t tx_count = utils::hexStringToU64(r->get<std::string>());
+            user_cb(tx_count);
+            return;
+        }
+        catch (const std::exception& e)
+        {
+            log::warning(logcat, "Failed to parse transaction count from json rpc response: {}", e.what());
+            user_cb(std::nullopt);
+        }
+    };
+    makeJsonRpcRequest("eth_getTransactionCount", params, std::move(cb));
 }
 
 std::optional<nlohmann::json> Provider::getTransactionByHash(std::string_view transactionHash) {
+    JsonResultWaiter waiter;
+    getTransactionByHashAsync(transactionHash, waiter.cb());
+    return waiter.get();
+}
+
+void Provider::getTransactionByHashAsync(std::string_view transactionHash, json_result_callback cb)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back(transactionHash);
-
-    // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionByHash", params);
-
-    if (response.status_code == 200) {
-        // Parse the response
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        if (responseJson.find("error") != responseJson.end())
-            throw std::runtime_error("Error getting transaction: " + responseJson["error"]["message"].get<std::string>());
-
-        // Check if the result field is present and not null
-        if (!responseJson["result"].is_null()) {
-            // Return the block number
-            return responseJson["result"];
-        }
-    }
-
-    // If we couldn't get the block number, return an empty optional
-    return std::nullopt;
+    makeJsonRpcRequest("eth_getTransactionByHash", params, std::move(cb));
 }
 
 std::optional<nlohmann::json> Provider::getTransactionReceipt(std::string_view transactionHash) {
+    JsonResultWaiter waiter;
+    getTransactionReceiptAsync(transactionHash, waiter.cb());
+    return waiter.get();
+}
+
+void Provider::getTransactionReceiptAsync(std::string_view transactionHash, json_result_callback cb)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back(transactionHash);
 
-    // Make the request
-    cpr::Response response = makeJsonRpcRequest("eth_getTransactionReceipt", params);
-
-    if (response.status_code == 200) {
-        // Parse the response
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        if (responseJson.find("error") != responseJson.end())
-            throw std::runtime_error("Error getting transaction receipt: " + responseJson["error"]["message"].get<std::string>());
-
-        // Check if the result field is present and not null
-        if (!responseJson["result"].is_null()) {
-            // Return the block number
-            return responseJson["result"];
-        }
-    }
-
-    // If we couldn't get the block number, return an empty optional
-    return std::nullopt;
+    makeJsonRpcRequest("eth_getTransactionReceipt", params, cb);
 }
 
 std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, std::string_view address) {
-    std::vector<LogEntry> logEntries;
+    JsonResultWaiter<std::vector<LogEntry>> waiter;
+    getLogsAsync(fromBlock, toBlock, address, waiter.cb());
+    auto result = waiter.get();
+    if (!result)
+        throw std::runtime_error("Error in json rpc eth_getLogs");
+    return *result;
+}
 
+std::vector<LogEntry> Provider::getLogs(uint64_t block, std::string_view address) {
+    return getLogs(block, block, address);
+}
+
+void Provider::getLogsAsync(uint64_t fromBlock, uint64_t toBlock, std::string_view address, optional_callback<std::vector<LogEntry>> user_cb)
+{
     nlohmann::json params = nlohmann::json::array();
     nlohmann::json params_data = nlohmann::json();
     params_data["fromBlock"] = utils::decimalToHex(fromBlock, true);
@@ -381,22 +455,22 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, st
     params_data["address"] = address;
     params.push_back(params_data);
 
-    // Make the RPC call
-    cpr::Response response = makeJsonRpcRequest("eth_getLogs", params);
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            user_cb(std::nullopt);
+            return;
+        }
+            
+        nlohmann::json responseJson = *r;
 
-    if (response.status_code == 200) {
-        // Parse the response
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
-
-        if (responseJson.find("error") != responseJson.end())
-            throw std::runtime_error("Error getting logs: " + responseJson["error"]["message"].get<std::string>());
-
-        // Check if the result field is present and not null
-        if (!responseJson["result"].is_null()) {
-            for (const auto& logJson : responseJson["result"]) {
+        std::vector<LogEntry> logEntries;
+        for (const auto& logJson : responseJson) {
+            try
+            {
                 LogEntry logEntry;
                 logEntry.address = logJson.contains("address") ? logJson["address"].get<std::string>() : "";
-                
+
                 if (logJson.contains("topics")) {
                     for (const auto& topic : logJson["topics"]) {
                         logEntry.topics.push_back(topic.get<std::string>());
@@ -404,22 +478,41 @@ std::vector<LogEntry> Provider::getLogs(uint64_t fromBlock, uint64_t toBlock, st
                 }
 
                 logEntry.data = logJson.contains("data") ? logJson["data"].get<std::string>() : "";
-                logEntry.blockNumber = logJson.contains("blockNumber") ? std::make_optional(std::stoull(logJson["blockNumber"].get<std::string>(), nullptr, 16)) : std::nullopt;
+                logEntry.blockNumber = logJson.contains("blockNumber") ? std::make_optional(utils::hexStringToU64(logJson["blockNumber"].get<std::string>())) : std::nullopt;
                 logEntry.transactionHash = logJson.contains("transactionHash") ? std::make_optional(logJson["transactionHash"].get<std::string>()) : std::nullopt;
-                logEntry.transactionIndex = logJson.contains("transactionIndex") ? std::make_optional(std::stoull(logJson["transactionIndex"].get<std::string>(), nullptr, 16)) : std::nullopt;
+                logEntry.transactionIndex = logJson.contains("transactionIndex") ? std::make_optional(utils::hexStringToU64(logJson["transactionIndex"].get<std::string>())) : std::nullopt;
                 logEntry.blockHash = logJson.contains("blockHash") ? std::make_optional(logJson["blockHash"].get<std::string>()) : std::nullopt;
-                logEntry.logIndex = logJson.contains("logIndex") ? std::make_optional(std::stoul(logJson["logIndex"].get<std::string>(), nullptr, 16)) : std::nullopt;
+
+                if (logJson.contains("logIndex"))
+                {
+                    uint64_t log_index;
+                    if (!utils::parseInt(logJson["logIndex"].get<std::string>(), log_index))
+                        throw std::runtime_error{"Error parsing logIndex element as uint64_t"};
+                    if (log_index > std::numeric_limits<uint32_t>::max())
+                        throw std::runtime_error{"Error logIndex element > uint32_t max"};
+                    logEntry.logIndex = static_cast<uint32_t>(log_index);
+                }
+                else
+                    logEntry.logIndex = std::nullopt;
+
                 logEntry.removed = logJson.contains("removed") ? logJson["removed"].get<bool>() : false;
 
                 logEntries.push_back(logEntry);
             }
+            catch (const std::exception& e)
+            {
+                log::warning(logcat, "Error parsing response from eth_getLogs: {}", e.what());
+                user_cb(std::nullopt);
+                return;
+            }
         }
-    }
-    return logEntries;
+        user_cb(std::move(logEntries));
+    };
+    makeJsonRpcRequest("eth_getLogs", params, cb);
 }
-
-std::vector<LogEntry> Provider::getLogs(uint64_t block, std::string_view address) {
-    return getLogs(block, block, address);
+void Provider::getLogsAsync(uint64_t block, std::string_view address, optional_callback<std::vector<LogEntry>> cb)
+{
+    getLogsAsync(block, block, address, std::move(cb));
 }
 
 std::string Provider::getContractStorageRoot(std::string_view address, uint64_t blockNumberInt) {
@@ -427,25 +520,43 @@ std::string Provider::getContractStorageRoot(std::string_view address, uint64_t 
 }
 
 std::string Provider::getContractStorageRoot(std::string_view address, std::string_view blockNumber) {
+    JsonResultWaiter<std::string> waiter;
+    getContractStorageRootAsync(address, waiter.cb(), blockNumber);
+    auto result = waiter.get();
+    if (!result)
+        throw std::runtime_error("json rpc storageRoot failed");
+    return *result;
+}
+
+void Provider::getContractStorageRootAsync(std::string_view address, optional_callback<std::string> user_cb, uint64_t blockNumberInt)
+{
+    getContractStorageRootAsync(address, std::move(user_cb), utils::decimalToHex(blockNumberInt, true));
+}
+void Provider::getContractStorageRootAsync(std::string_view address, optional_callback<std::string> user_cb, std::string_view blockNumber)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     auto storage_keys = nlohmann::json::array();
     params.push_back(storage_keys);
     params.push_back(blockNumber);
 
-    auto response = makeJsonRpcRequest("eth_getProof", params);
-    if(response.status_code != 200)
-        throw std::runtime_error("Failed to call eth_getProof: " + response.text + " params: " + params.dump());
-
-    nlohmann::json responseJson = nlohmann::json::parse(response.text);
-    if (responseJson.find("error") != responseJson.end())
-        throw std::runtime_error("Error in response of eth_getProof: " + responseJson["error"]["message"].get<std::string>());
-
-    if (responseJson.contains("result") && responseJson["result"].contains("storageHash")) {
-        return responseJson["result"]["storageHash"].get<std::string>();
-    }
-
-    throw std::runtime_error("No storage proof found in response");
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            user_cb(std::nullopt);
+            return;
+        }
+            
+        nlohmann::json responseJson = *r;
+        if (!responseJson.contains("storageHash"))
+        {
+            log::warning(logcat, "eth_getProof result did not contain key storageHash");
+            user_cb(std::nullopt);
+            return;
+        }
+        user_cb(responseJson["storageHash"]);
+    };
+    makeJsonRpcRequest("eth_getProof", params, std::move(cb));
 }
 
 // Calls `f()` which should return an optional<T> repeatedly (sleeping for `call_interval` between
@@ -479,22 +590,20 @@ std::string Provider::sendTransaction(const Transaction& signedTx) {
 
 // Create and send a raw transaction returns the hash without checking if it succeeded in getting into the mempool
 std::string Provider::sendUncheckedTransaction(const Transaction& signedTx) {
+    JsonResultWaiter waiter;
+    sendUncheckedTransactionAsync(signedTx, waiter.cb());
+    auto result = waiter.get();
+    if (!result)
+        throw std::runtime_error("Failed to send transaction");
+    return *result;
+}
+
+void Provider::sendUncheckedTransactionAsync(const Transaction& signedTx, optional_callback<std::string> user_cb)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back("0x" + signedTx.serializeAsHex());
-    
-    auto response = makeJsonRpcRequest("eth_sendRawTransaction", params);
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
 
-        if (responseJson.find("error") != responseJson.end())
-            throw std::runtime_error("Error sending transaction: " + responseJson["error"]["message"].get<std::string>());
-
-        std::string hash = responseJson["result"].get<std::string>();
-
-        return hash;
-    } else {
-        throw std::runtime_error("Failed to send transaction");
-    }
+    makeJsonRpcRequest("eth_sendRawTransaction", params, std::move(user_cb));
 }
 
 uint64_t Provider::waitForTransaction(
@@ -544,38 +653,60 @@ uint64_t Provider::gasUsed(std::string_view txHash, std::chrono::milliseconds ti
 }
 
 std::string Provider::getBalance(std::string_view address) {
+    JsonResultWaiter waiter;
+    getBalanceAsync(address, waiter.cb());
+    auto result = waiter.get();
+
+    if (!result)
+        throw std::runtime_error("Failed to get balance for address " + std::string{address});
+    return *result;
+}
+
+void Provider::getBalanceAsync(std::string_view address, optional_callback<std::string> user_cb)
+{
     nlohmann::json params = nlohmann::json::array();
     params.push_back(address);
     params.push_back("latest");
-    
-    auto response = makeJsonRpcRequest("eth_getBalance", params);
-    if (response.status_code == 200) {
-        nlohmann::json responseJson = nlohmann::json::parse(response.text);
 
-        if (responseJson.find("error") != responseJson.end())
-            throw std::runtime_error("Error getting balance: " + responseJson["error"]["message"].get<std::string>());
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            user_cb(std::nullopt);
+            return;
+        }
 
-        std::string balanceHex = responseJson["result"].get<std::string>();
+        try
+        {
+            std::string balanceHex = r->get<std::string>();
 
-        // Convert balance from hex to GMP multi-precision integer
-        mpz_class balance;
-        balance.set_str(balanceHex, 0); // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
+            // Convert balance from hex to GMP multi-precision integer
+            mpz_class balance;
+            balance.set_str(balanceHex, 0); // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
 
-        return balance.get_str();
-    } else {
-        throw std::runtime_error("Failed to get balance for address " + std::string{address});
-    }
+            user_cb(balance.get_str());
+            return;
+        }
+        catch (const std::exception& e)
+        {
+            log::warning(logcat, "eth_getBalance response, failed to parse bigint: {}", r->get<std::string>());
+            user_cb(std::nullopt);
+        }
+    };
+    makeJsonRpcRequest("eth_getBalance", params, std::move(cb));
 }
 
 std::string Provider::getContractDeployedInLatestBlock() {
     nlohmann::json params = nlohmann::json::array();
     params.push_back("latest");
     params.push_back(true);
-    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
-    if (blockResponse.status_code != 200)
-        throw std::runtime_error("Failed to get the latest block");
-    nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
+    JsonResultWaiter waiter;
+    makeJsonRpcRequest("eth_getBlockByNumber", params, waiter.cb());
+    auto result = waiter.get();
 
+    if (!result)
+        throw std::runtime_error("Failed to get the latest block");
+
+    nlohmann::json blockJson = *result;
     for (const auto& tx : blockJson["result"]["transactions"]) {
         std::optional<nlohmann::json> transactionReceipt = getTransactionReceipt(tx["hash"].get<std::string>());
         if (transactionReceipt.has_value())
@@ -585,16 +716,42 @@ std::string Provider::getContractDeployedInLatestBlock() {
     throw std::runtime_error("No contracts deployed in latest block");
 }
 
-
 uint64_t Provider::getLatestHeight() {
-    nlohmann::json params = nlohmann::json::array();
-    auto blockResponse = makeJsonRpcRequest("eth_blockNumber", params);
-    if (blockResponse.status_code != 200) {
+    JsonResultWaiter waiter;
+    getLatestHeightAsync(waiter.cb());
+    auto result = waiter.get();
         throw std::runtime_error("Failed to get the latest height");
-    }
-    nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
-    return std::stoull(blockJson["result"].get<std::string>(), nullptr, 16);
+    return *result;
 
+}
+
+void Provider::getLatestHeightAsync(optional_callback<uint64_t> user_cb)
+{
+    nlohmann::json params = nlohmann::json::array();
+
+    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
+        if (!r)
+        {
+            log::debug(logcat, "getLatestHeight result empty");
+            user_cb(std::nullopt);
+            return;
+        }
+        log::debug(logcat, "getLatestHeight result: {}", r->dump());
+
+        try
+        {
+            uint64_t height = utils::hexStringToU64(r->get<std::string>());
+            user_cb(height);
+            return;
+        }
+        catch (const std::exception& e)
+        {
+            log::warning(logcat, "Error parsing response from eth_blockNumber, input: {}", r->get<std::string>());
+            user_cb(std::nullopt);
+        }
+    };
+
+    makeJsonRpcRequest("eth_blockNumber", params, std::move(cb));
 }
 
 FeeData Provider::getFeeData() {
@@ -602,21 +759,25 @@ FeeData Provider::getFeeData() {
     nlohmann::json params = nlohmann::json::array();
     params.push_back("latest");
     params.push_back(true);
-    auto blockResponse = makeJsonRpcRequest("eth_getBlockByNumber", params);
-    if (blockResponse.status_code != 200) {
-        throw std::runtime_error("Failed to call get block by number for latest block for baseFeePerGas");
-    }
-    nlohmann::json blockJson = nlohmann::json::parse(blockResponse.text);
-    uint64_t baseFeePerGas = std::stoull(blockJson["result"]["baseFeePerGas"].get<std::string>(), nullptr, 16);
+
+    JsonResultWaiter waiter;
+    makeJsonRpcRequest("eth_getBlockByNumber", params, waiter.cb());
+    auto result = waiter.get();
+
+    if (!result)
+        throw std::runtime_error("Failed to get eth_getBlockByNumber");
+
+    auto gas_fee_str = (*result)["baseFeePerGas"].get<std::string>();
+    uint64_t baseFeePerGas = utils::hexStringToU64(gas_fee_str);
     
-    // Get gas price
     params = nlohmann::json::array();
-    auto gasPriceResponse = makeJsonRpcRequest("eth_gasPrice", params);
-    if (gasPriceResponse.status_code != 200) {
-        throw std::runtime_error("Failed to get gas price");
-    }
-    nlohmann::json gasPriceJson = nlohmann::json::parse(gasPriceResponse.text);
-    uint64_t gasPrice = std::stoull(gasPriceJson["result"].get<std::string>(), nullptr, 16);
+    JsonResultWaiter waiter2;
+    makeJsonRpcRequest("eth_gasPrice", params, waiter2.cb());
+    result = waiter2.get();
+    if (!result)
+        throw std::runtime_error("Failed to get eth_gasPrice");
+
+    uint64_t gasPrice = utils::hexStringToU64(result->get<std::string>());
 
     // Compute maxFeePerGas and maxPriorityFeePerGas based on baseFeePerGas
     uint64_t maxPriorityFeePerGas = 3000000000;
@@ -624,4 +785,5 @@ FeeData Provider::getFeeData() {
 
     return FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
 }
+
 }; // namespace ethyl
