@@ -50,7 +50,7 @@ public:
     RequestCancelled() : std::runtime_error{"json rpc request cancelled (or requester gone)"} {}
 };
 
-Provider::Provider(std::chrono::milliseconds request_timeout)
+Provider::Provider()
 {
     response_thread = std::make_unique<std::thread>([this](){
         while (running)
@@ -89,7 +89,7 @@ Provider::Provider(std::chrono::milliseconds request_timeout)
             }
         }
     });
-    session->SetOption(cpr::Timeout(request_timeout));
+    setTimeout(DEFAULT_TIMEOUT);
 }
 
 Provider::~Provider()
@@ -101,6 +101,10 @@ Provider::~Provider()
     response_cv.notify_one();
     assert(response_thread && response_thread->joinable());
     response_thread->join();
+}
+
+void Provider::setTimeout(std::chrono::milliseconds request_timeout) {
+    session->SetOption(cpr::Timeout(request_timeout));
 }
 
 void Provider::addClient(std::string name, std::string url) {

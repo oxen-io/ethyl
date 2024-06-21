@@ -55,10 +55,16 @@ struct Provider : public std::enable_shared_from_this<Provider> {
      * @returns True if the client was added successfully. False if the `url`
      * was not set.
      */
-    Provider(std::chrono::milliseconds request_timeout = 3s);
+    Provider();
     ~Provider();
 
     void addClient(std::string name, std::string url);
+
+    // Updates the request timeout used for new requests
+    void setTimeout(std::chrono::milliseconds request_timeout);
+
+    // The default timeout applied (if setTimeout is not called)
+    static constexpr auto DEFAULT_TIMEOUT = 3s;
 
     bool connectToNetwork();
     void disconnectFromNetwork();
