@@ -141,11 +141,11 @@ std::optional<nlohmann::json> get_json_result(const cpr::Response& r)
     }
     try
     {
-        log::trace(logcat, "parsing json rpc result");
+        log::debug(logcat, "parsing json rpc result, r.text = \"{}\"", r.text);
         auto responseJson = nlohmann::json::parse(r.text);
         log::debug(logcat, "parsing json rpc result succeeded");
-        //if (!responseJson.contains("result") and not responseJson["result"].is_null()) {
-        if (not responseJson["result"].is_null()) {
+        if (responseJson.contains("result") and not responseJson["result"].is_null())
+        {
             log::debug(logcat, "returning parsed json result");
             return std::move(responseJson["result"]);
         }
@@ -164,8 +164,11 @@ std::optional<nlohmann::json> get_json_result(const cpr::Response& r)
 }
 
 void Provider::makeJsonRpcRequest(std::string_view method,
-                                           const nlohmann::json& params,
-                                           json_result_callback cb) {
+        const nlohmann::json& params,
+        json_result_callback cb,
+        size_t client_index,
+        bool should_try_next) {
+
     std::unique_lock lock{mutex};
     if (clients.empty()) {
       throw std::runtime_error(
@@ -178,8 +181,9 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     bodyJson["method"]  = method;
     bodyJson["params"]  = params;
     bodyJson["id"]      = 1;
-    log::debug(logcat, "making rpc request to {} with args {}", method, bodyJson["params"].dump());
+    log::debug(logcat, "making rpc request with body {}", bodyJson.dump());
     cpr::Body body(bodyJson.dump());
+    log::debug(logcat, "cpr::Body: {}", body.str());
 
     session->SetBody(body);
     session->SetHeader({{"Content-Type", "application/json"}});
@@ -187,69 +191,64 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     // TODO(doyle): It is worth it in the future to give stats on which
     // client failed and return it to the caller so that they can have some
     // mitigation strategy when a client is frequently failing.
-    session->SetUrl(clients[0].url);
-    auto req_id = next_request_id++;
-    auto result_future = session->PostCallback([self=weak_from_this(), req_id, body](cpr::Response r){
+    if (clients.size() <= client_index)
+    {
+        log::debug(logcat, "Attempting to use provider client with index ({}) out of bounds.", client_index);
+        cb(std::nullopt);
+        return;
+    }
+    session->SetUrl(clients[client_index].url);
+    auto result_future = session->PostCallback([self=weak_from_this(), cb=std::move(cb), method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
         log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
 
-        std::shared_ptr<Provider> ptr{nullptr};
-        std::optional<nlohmann::json> result_json;
-        size_t next_client = 0;
-        while (true)
-        {
-            next_client++;
-            ptr = self.lock();
-            if (not ptr)
-                throw RequestCancelled{};
-            std::unique_lock lk{ptr->mutex};
-            if (not ptr->running)
-                throw RequestCancelled{};
+        auto ptr = self.lock();
 
-            log::debug(logcat, "XXXXX 1");
-            if (result_json = get_json_result(r); !result_json)
+        if (not ptr)
+            return; // Provider is gone, drop response
+        std::unique_lock lk{ptr->mutex};
+        if (not ptr->running)
+            return; // Provider soon will be gone, drop response
+
+        std::optional<nlohmann::json> result_json;
+        if (result_json = get_json_result(r); result_json)
+        {
+            lk.unlock();
+            log::debug(logcat, "makeJsonRpcRequest returning: {}", result_json->dump());
+            cb(result_json);
+            return;
+        }
+
+        if (should_try_next)
+        {
+            if (ptr->clients.size() > prev_client_index+1)
             {
-                log::debug(logcat, "fail response message: {}", r.error.message);
-                continue;
-            }
-            log::debug(logcat, "XXXXX 2");
-            if (ptr->clients.size() > next_client)
-            {
-                log::debug(logcat, "Trying fallback client index = {}", next_client);
-                ptr->session->SetBody(body);
-                ptr->session->SetHeader({{"Content-Type", "application/json"}});
-                ptr->session->SetUrl(ptr->clients[next_client].url);
-                auto fut = ptr->session->PostAsync();
-                lk.unlock();
-                r = fut.get();
-            }
-            else
-            {
-                log::debug(logcat, "All l2 providers failed request: {}", body.str());
-                break;
+                ptr->makeJsonRpcRequest(method, params, std::move(cb), prev_client_index+1, true);
+                return;
             }
         }
-        log::debug(logcat, "XXXXX 3");
-
-        if (result_json)
-            log::debug(logcat, "makeJsonRpcRequest returning: {}", result_json->dump());
-        else
-            log::debug(logcat, "makeJsonRpcRequest returning: {{}}");
-
-        std::lock_guard lk{ptr->mutex};
-        ptr->pending_responses.push(req_id);
-        ptr->response_cv.notify_one();
-        return result_json;
+        cb(std::nullopt);
+        return;
     });
 
-    auto req_pair = std::make_pair(std::move(result_future), std::move(cb));
-    pending_requests.emplace(req_id, std::move(req_pair));
+    /*
+    try
+    {
+        result_future.wait_for(4s);
+    }
+    catch (const std::exception& e)
+    {
+        log::debug(logcat, "busy future wait threw, how annoying: {}", e.what());
+    }
+    */
 }
 
 std::optional<nlohmann::json> Provider::makeJsonRpcRequest(std::string_view method,
-                                 const nlohmann::json& params)
+                                 const nlohmann::json& params,
+                                 size_t client_index,
+                                 bool should_try_next)
 {
     JsonResultWaiter waiter;
-    makeJsonRpcRequest(method, params, waiter.cb());
+    makeJsonRpcRequest(method, params, waiter.cb(), client_index, should_try_next);
     return waiter.get();
 }
 

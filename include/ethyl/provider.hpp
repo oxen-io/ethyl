@@ -130,6 +130,13 @@ public:
     std::unique_ptr<std::thread> response_thread;
     std::condition_variable response_cv;
     std::queue<uint64_t> pending_responses;
+
+    /*
+    // we don't really care about these futures as we're doing processing on the responses
+    // in our callbacks, but we have to keep them alive for cpr to *call* said callbacks.
+    std::queue<cpr::AsyncWrapper<void>> cpr_futures;
+    */
+
     bool running{true};
 
 private:
@@ -145,9 +152,13 @@ private:
      */
     void makeJsonRpcRequest(std::string_view method,
                                      const nlohmann::json& params,
-                                     json_result_callback cb);
+                                     json_result_callback cb,
+                                     size_t client_index = 0,
+                                     bool should_try_next = true);
     std::optional<nlohmann::json> makeJsonRpcRequest(std::string_view method,
-                                     const nlohmann::json& params);
+                                     const nlohmann::json& params,
+                                     size_t client_index = 0,
+                                     bool should_try_next = true);
     std::shared_ptr<cpr::Session> session = std::make_shared<cpr::Session>();
     std::mutex mutex;
 };
