@@ -40,6 +40,16 @@ struct Client {
 
 struct Provider : public std::enable_shared_from_this<Provider> {
 
+protected:
+    Provider();
+public:
+
+    ~Provider();
+
+    static std::shared_ptr<Provider> make_provider() {
+        return std::shared_ptr<Provider>{new Provider{}};
+    }
+
     template <typename Ret>
     using optional_callback = std::function<void(std::optional<Ret>)>;
 
@@ -56,9 +66,6 @@ struct Provider : public std::enable_shared_from_this<Provider> {
      * @returns True if the client was added successfully. False if the `url`
      * was not set.
      */
-    Provider();
-    ~Provider();
-
     void addClient(std::string name, std::string url);
 
     // Updates the request timeout used for new requests

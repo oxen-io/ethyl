@@ -21,7 +21,7 @@ inline constexpr auto ANVIL_PRIVATE_KEY         = "ac0974bec39a17e36ba4a6b4d238f
 Signer signer;
 
 int main(int argc, char *argv[]) {
-    signer.provider.addClient("Client", "127.0.0.1:8545");
+    signer.provider->addClient("Client", "127.0.0.1:8545");
     std::cout << "Note to run these tests, ensure that a local Ethereum development network is running at 127.0.0.1:8545" << "\n";
     int result = Catch::Session().run(argc, argv);
     return result;
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 
 TEST_CASE( "Get balance from sepolia network", "[ethereum]" ) {
     // Get the balance of the test address
-    auto balance = signer.provider.getBalance(std::string(ANVIL_ADDRESS));
+    auto balance = signer.provider->getBalance(std::string(ANVIL_ADDRESS));
 
     // Check that the balance is greater than zero
     REQUIRE( balance != "" );
@@ -98,7 +98,7 @@ TEST_CASE( "Signs an unsigned transaction correctly", "[transaction]" ) {
 }
 
 TEST_CASE( "Does a self transfer", "[transaction]" ) {
-    Provider *provider = &signer.provider;
+    auto provider = signer.provider;
     Transaction tx(std::string(ANVIL_ADDRESS), 100000000000000, 21000);
     tx.chainId = 31337; //LOCAL
     tx.nonce = provider->getTransactionCount(std::string(ANVIL_ADDRESS), "pending");
@@ -115,13 +115,13 @@ TEST_CASE( "Does a self transfer on network using signer to populate", "[transac
     Transaction tx(std::string(ANVIL_ADDRESS), 100000000000000, 21000);
     const auto hash = signer.sendTransaction(tx, ANVIL_PRIVATE_KEY);
     REQUIRE(hash != "");
-    REQUIRE(signer.provider.transactionSuccessful(hash));
+    REQUIRE(signer.provider->transactionSuccessful(hash));
 }
 
 TEST_CASE( "Test multiple clients", "[provider]" ) {
-    Provider provider       = {};
-    provider.connectTimeout = std::chrono::milliseconds(1000);
-    REQUIRE(provider.addClient("This client should fail", "0.0.0.0:80")     == true);
-    REQUIRE(provider.addClient("Client",                  "127.0.0.1:8545") == true);
-    REQUIRE(provider.connectToNetwork());
+    auto provider       = Provider::make_provider();
+    provider->connectTimeout = std::chrono::milliseconds(1000);
+    REQUIRE(provider->addClient("This client should fail", "0.0.0.0:80")     == true);
+    REQUIRE(provider->addClient("Client",                  "127.0.0.1:8545") == true);
+    REQUIRE(provider->connectToNetwork());
 }

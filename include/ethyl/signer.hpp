@@ -43,7 +43,7 @@ public:
 
     std::string sendTransaction(Transaction& tx, std::span<const unsigned char> seckey);
 
-    Provider provider;
+    std::shared_ptr<Provider> provider = Provider::make_provider();
 
 private:
     secp256k1_context* ctx;

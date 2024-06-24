@@ -91,16 +91,16 @@ std::string Signer::secretKeyToAddressString(std::span<const unsigned char> seck
 
 void Signer::populateTransaction(Transaction& tx, std::string senderAddress) {
     // Check if the signer has a client
-    if (provider.clients.empty())
+    if (provider->clients.empty())
         throw std::runtime_error("Signer does not have a provider with any RPC backends set. Ensure that the provider has atleast one client");
 
     // If nonce is not set, get it from the network
     if (tx.nonce == 0) {
-        tx.nonce = provider.getTransactionCount(senderAddress, "pending");
+        tx.nonce = provider->getTransactionCount(senderAddress, "pending");
     }
 
     // Get network's chain ID
-    uint32_t networkChainId = provider.getNetworkChainId();
+    uint32_t networkChainId = provider->getNetworkChainId();
 
     // Check and set chainId
     if (tx.chainId != 0) {
@@ -112,7 +112,7 @@ void Signer::populateTransaction(Transaction& tx, std::string senderAddress) {
     }
 
     // Get fee data
-    const auto feeData = provider.getFeeData();
+    const auto feeData = provider->getFeeData();
     tx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
 
     if (tx.maxFeePerGas == 0) {
@@ -198,7 +198,7 @@ std::string Signer::sendTransaction(Transaction& tx, std::span<const unsigned ch
     const auto senders_address = secretKeyToAddressString(seckey);
     populateTransaction(tx, senders_address);
     signTransaction(tx, seckey);
-    const auto result = provider.sendTransaction(tx);
+    const auto result = provider->sendTransaction(tx);
     return result;
 }
 }; // namespace ethyl
