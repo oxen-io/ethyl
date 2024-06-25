@@ -43,64 +43,13 @@ struct JsonResultWaiter
     auto get() { return fut.get(); }
 };
 
-// also thrown if Provider goes away before the request completes
-class RequestCancelled : public std::runtime_error
-{
-public:
-    RequestCancelled() : std::runtime_error{"json rpc request cancelled (or requester gone)"} {}
-};
-
 Provider::Provider()
 {
-    response_thread = std::make_unique<std::thread>([this](){
-        while (running)
-        {
-            std::unique_lock lk{mutex};
-            response_cv.wait(lk, [this](){ return pending_responses.size() or (not running); });
-            if (not running) break;
-
-            std::vector<decltype(pending_requests)::mapped_type> futures;
-            while (pending_responses.size())
-            {
-                auto id = pending_responses.front();
-                pending_responses.pop();
-                auto fut_itr = pending_requests.find(id);
-                assert(fut_itr != pending_requests.end());
-                futures.push_back(std::move(fut_itr->second));
-                pending_requests.erase(fut_itr);
-            }
-            lk.unlock();
-            for (auto& fut : futures)
-            {
-                try
-                {
-                    log::trace(logcat, "Firing callback for finished json rpc request");
-                    fut.second(fut.first.get());
-                }
-                catch (const RequestCancelled& e)
-                {
-                    log::trace(logcat, "{}", e.what());
-                }
-                catch (const std::exception& e)
-                {
-                    log::warning(logcat, "Exception from json rpc request: {}", e.what());
-                    fut.second(std::nullopt);
-                }
-            }
-        }
-    });
     setTimeout(DEFAULT_TIMEOUT);
 }
 
 Provider::~Provider()
 {
-    {
-        std::lock_guard lk{mutex};
-        running = false;
-    }
-    response_cv.notify_one();
-    assert(response_thread && response_thread->joinable());
-    response_thread->join();
 }
 
 void Provider::setTimeout(std::chrono::milliseconds request_timeout) {
@@ -198,7 +147,7 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         return;
     }
     session->SetUrl(clients[client_index].url);
-    auto result_future = session->PostCallback([self=weak_from_this(), cb=std::move(cb), method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
+    auto post_cb = [self=weak_from_this(), cb=std::move(cb), method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
         log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
 
         auto ptr = self.lock();
@@ -206,8 +155,6 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         if (not ptr)
             return; // Provider is gone, drop response
         std::unique_lock lk{ptr->mutex};
-        if (not ptr->running)
-            return; // Provider soon will be gone, drop response
 
         std::optional<nlohmann::json> result_json;
         if (result_json = get_json_result(r); result_json)
@@ -222,24 +169,15 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         {
             if (ptr->clients.size() > prev_client_index+1)
             {
+                lk.unlock();
                 ptr->makeJsonRpcRequest(method, params, std::move(cb), prev_client_index+1, true);
                 return;
             }
         }
         cb(std::nullopt);
         return;
-    });
-
-    /*
-    try
-    {
-        result_future.wait_for(4s);
-    }
-    catch (const std::exception& e)
-    {
-        log::debug(logcat, "busy future wait threw, how annoying: {}", e.what());
-    }
-    */
+    };
+    auto result_future = session->PostCallback(std::move(post_cb));
 }
 
 std::optional<nlohmann::json> Provider::makeJsonRpcRequest(std::string_view method,

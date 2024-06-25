@@ -125,20 +125,6 @@ public:
     /// attempted.
     std::vector<Client>                      clients;
 
-    uint64_t next_request_id{0};
-    std::map<uint64_t, std::pair<cpr::AsyncWrapper<std::optional<nlohmann::json>>, json_result_callback>> pending_requests;
-    std::unique_ptr<std::thread> response_thread;
-    std::condition_variable response_cv;
-    std::queue<uint64_t> pending_responses;
-
-    /*
-    // we don't really care about these futures as we're doing processing on the responses
-    // in our callbacks, but we have to keep them alive for cpr to *call* said callbacks.
-    std::queue<cpr::AsyncWrapper<void>> cpr_futures;
-    */
-
-    bool running{true};
-
 private:
     /**
      * @param timeout Set a timeout for the provider to connect to current
