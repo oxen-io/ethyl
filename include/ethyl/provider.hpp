@@ -1,6 +1,7 @@
 // Provider.hpp
 #pragma once
 
+#include <forward_list>
 #include <string>
 #include <string_view>
 #include <optional>
@@ -36,6 +37,12 @@ struct FeeData {
 struct Client {
     std::string name;
     cpr::Url url;
+};
+
+struct HeightInfo {
+    size_t index;
+    bool success{false};
+    uint64_t height{0};
 };
 
 struct Provider : public std::enable_shared_from_this<Provider> {
@@ -125,26 +132,28 @@ public:
     /// attempted.
     std::vector<Client>                      clients;
 
-private:
-    /**
-     * @param timeout Set a timeout for the provider to connect to current
-     * client it's attempting before returning a timeout failure. If this is not
-     * set,the timeout is the default timeout value of CURL which is 300
-     * seconds.
-     *
-     * If you have multiple clients it may be desired to set this value such
-     * that the provider can quickly evaluate the backup clients in its list on
-     * failure.
-     */
+
+    /// Allows the user to specify a different order in which to try provider clients
+    /// if the user finds that one or more clients is performing badly.  This is
+    /// separate from `clients` so that the order in `clients` remains stable.
+    std::vector<size_t> client_order;
+
+    void setClientOrder(std::vector<size_t> order);
+
     void makeJsonRpcRequest(std::string_view method,
                                      const nlohmann::json& params,
                                      json_result_callback cb,
-                                     size_t client_index = 0,
+                                     std::forward_list<size_t> client_indices = {},
                                      bool should_try_next = true);
     std::optional<nlohmann::json> makeJsonRpcRequest(std::string_view method,
                                      const nlohmann::json& params,
-                                     size_t client_index = 0,
+                                     std::forward_list<size_t> client_indices = {},
                                      bool should_try_next = true);
+
+    std::vector<HeightInfo> getAllHeights();
+    void getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb);
+
+private:
 
     std::map<std::string, std::queue<std::shared_ptr<cpr::Session>>> client_sessions;
 

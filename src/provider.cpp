@@ -67,6 +67,18 @@ void Provider::addClient(std::string name, std::string url) {
         throw std::invalid_argument{"Provider URL was already added."};
     }
     clients.emplace_back(Client{std::move(name), std::move(url)});
+    client_order.push_back(clients.size() - 1);
+}
+
+void Provider::setClientOrder(std::vector<size_t> order)
+{
+    std::lock_guard lk{mutex};
+    for (auto index : order)
+    {
+        if (index >= clients.size())
+            throw std::invalid_argument{"request client order index out of bounds"};
+    }
+    client_order = std::move(order);
 }
 
 std::shared_ptr<cpr::Session> Provider::get_client_session(const std::string& url)
@@ -140,7 +152,7 @@ std::optional<nlohmann::json> get_json_result(const cpr::Response& r)
 void Provider::makeJsonRpcRequest(std::string_view method,
         const nlohmann::json& params,
         json_result_callback cb,
-        size_t client_index,
+        std::forward_list<size_t> client_indices,
         bool should_try_next) {
 
     std::unique_lock lock{mutex};
@@ -149,6 +161,19 @@ void Provider::makeJsonRpcRequest(std::string_view method,
           "No clients were set for the provider. Ensure that a client was "
           "added to the provider before issuing a request.");
     }
+
+    if (client_indices.empty())
+        client_indices = {client_order.begin(), client_order.end()};
+
+    if (client_indices.empty())
+    {
+        log::warning(logcat, "attempting jsonrpc request to eth provider, but client_order is empty.  You get nothing!  You lose!  Good day, sir!");
+        cb(std::nullopt);
+        return;
+    }
+
+    auto client_index = client_indices.front();
+    client_indices.pop_front();
 
     nlohmann::json bodyJson;
     bodyJson["jsonrpc"] = "2.0";
@@ -160,10 +185,7 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     log::debug(logcat, "cpr::Body: {}", body.str());
 
 
-    // TODO(doyle): It is worth it in the future to give stats on which
-    // client failed and return it to the caller so that they can have some
-    // mitigation strategy when a client is frequently failing.
-    if (clients.size() <= client_index)
+    if (client_index >= clients.size())
     {
         log::debug(logcat, "Attempting to use provider client with index ({}) out of bounds.", client_index);
         cb(std::nullopt);
@@ -173,7 +195,7 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     auto session = get_client_session(url);
     session->SetBody(body);
     session->SetHeader({{"Content-Type", "application/json"}});
-    auto post_cb = [self=weak_from_this(), cb=std::move(cb), url=std::move(url), session, method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
+    auto post_cb = [self=weak_from_this(), cb=std::move(cb), url=std::move(url), session, method, params, client_indices=std::move(client_indices), should_try_next](cpr::Response r){
         log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
 
         auto ptr = self.lock();
@@ -184,6 +206,9 @@ void Provider::makeJsonRpcRequest(std::string_view method,
 
         ptr->client_sessions.at(url).push(std::move(session));
 
+        // TODO(doyle): It is worth it in the future to give stats on which
+        // client failed and return it to the caller so that they can have some
+        // mitigation strategy when a client is frequently failing.
         std::optional<nlohmann::json> result_json;
         if (result_json = get_json_result(r); result_json)
         {
@@ -193,14 +218,11 @@ void Provider::makeJsonRpcRequest(std::string_view method,
             return;
         }
 
-        if (should_try_next)
+        if (should_try_next and not client_indices.empty())
         {
-            if (ptr->clients.size() > prev_client_index+1)
-            {
-                lk.unlock();
-                ptr->makeJsonRpcRequest(method, params, std::move(cb), prev_client_index+1, true);
-                return;
-            }
+            lk.unlock();
+            ptr->makeJsonRpcRequest(method, params, std::move(cb), std::move(client_indices), true);
+            return;
         }
         cb(std::nullopt);
         return;
@@ -210,11 +232,11 @@ void Provider::makeJsonRpcRequest(std::string_view method,
 
 std::optional<nlohmann::json> Provider::makeJsonRpcRequest(std::string_view method,
                                  const nlohmann::json& params,
-                                 size_t client_index,
+                                 std::forward_list<size_t> client_indices,
                                  bool should_try_next)
 {
     JsonResultWaiter waiter;
-    makeJsonRpcRequest(method, params, waiter.cb(), client_index, should_try_next);
+    makeJsonRpcRequest(method, params, waiter.cb(), std::move(client_indices), should_try_next);
     return waiter.get();
 }
 
@@ -685,6 +707,27 @@ std::string Provider::getContractDeployedInLatestBlock() {
     throw std::runtime_error("No contracts deployed in latest block");
 }
 
+std::optional<uint64_t> parseHeightResponse(const std::optional<nlohmann::json>& r)
+{
+    if (!r)
+    {
+        log::debug(logcat, "eth_blockNumber result empty");
+        return std::nullopt;
+    }
+    log::debug(logcat, "eth_blockNumber result: {}", r->dump());
+
+    try
+    {
+        uint64_t height = utils::hexStringToU64(r->get<std::string>());
+        return height;
+    }
+    catch (const std::exception& e)
+    {
+        log::warning(logcat, "Error parsing response from eth_blockNumber, input: {}", r->get<std::string>());
+        return std::nullopt;
+    }
+}
+
 uint64_t Provider::getLatestHeight() {
     JsonResultWaiter waiter;
     getLatestHeightAsync(waiter.cb());
@@ -699,28 +742,58 @@ void Provider::getLatestHeightAsync(optional_callback<uint64_t> user_cb)
     nlohmann::json params = nlohmann::json::array();
 
     auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
-        if (!r)
-        {
-            log::debug(logcat, "getLatestHeight result empty");
+        auto height = parseHeightResponse(r);
+        if (!height)
             user_cb(std::nullopt);
-            return;
-        }
-        log::debug(logcat, "getLatestHeight result: {}", r->dump());
-
-        try
-        {
-            uint64_t height = utils::hexStringToU64(r->get<std::string>());
-            user_cb(height);
-            return;
-        }
-        catch (const std::exception& e)
-        {
-            log::warning(logcat, "Error parsing response from eth_blockNumber, input: {}", r->get<std::string>());
-            user_cb(std::nullopt);
-        }
+        user_cb(height);
     };
 
     makeJsonRpcRequest("eth_blockNumber", params, std::move(cb));
+}
+
+std::vector<HeightInfo> Provider::getAllHeights()
+{
+    JsonResultWaiter<std::vector<HeightInfo>> waiter;
+    std::promise<std::vector<HeightInfo>> p;
+    auto fut = p.get_future();
+    auto cb = [&p](std::vector<HeightInfo> r) {
+        p.set_value(r);
+    };
+    getAllHeightsAsync(std::move(cb));
+    return fut.get();
+}
+
+void Provider::getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb)
+{
+    std::lock_guard lk{mutex};
+
+    struct full_request {
+        std::vector<HeightInfo> infos;
+        std::atomic<size_t> done_count{0};
+        std::function<void(std::vector<HeightInfo>)> user_cb;
+    };
+
+    auto req = std::make_shared<full_request>();
+    req->infos.resize(clients.size());
+    req->user_cb = std::move(user_cb);
+
+    for (size_t i=0; i < clients.size(); i++)
+    {
+        req->infos[i].index = i;
+        auto cb = [i, req](std::optional<nlohmann::json> r){
+            auto height = parseHeightResponse(r);
+            if (height)
+            {
+                req->infos[i].height = *height;
+                req->infos[i].success = true;
+            }
+            if (++(req->done_count) == req->infos.size())
+            {
+                (req->user_cb)(std::move(req->infos));
+            }
+        };
+        makeJsonRpcRequest("eth_blockNumber", nlohmann::json::array(), std::move(cb), {i}, false);
+    }
 }
 
 FeeData Provider::getFeeData() {
