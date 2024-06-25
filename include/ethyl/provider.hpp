@@ -129,6 +129,7 @@ public:
 
     size_t numClients();
 
+    std::vector<Client> getClients();
 
     void setClientOrder(std::vector<size_t> order);
 
@@ -150,7 +151,7 @@ private:
     /// List of clients for interacting with the Ethereum network via RPC
     /// The order of the clients dictates the order in which a request is
     /// attempted.
-    std::vector<Client>                      clients;
+    std::vector<Client> clients;
 
     /// Allows the user to specify a different order in which to try provider clients
     /// if the user finds that one or more clients is performing badly.  This is
