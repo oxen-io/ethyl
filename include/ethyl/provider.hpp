@@ -69,7 +69,7 @@ public:
     void addClient(std::string name, std::string url);
 
     // Updates the request timeout used for new requests
-    void setTimeout(std::chrono::milliseconds request_timeout);
+    void setTimeout(std::chrono::milliseconds timeout);
 
     // The default timeout applied (if setTimeout is not called)
     static constexpr auto DEFAULT_TIMEOUT = 3s;
@@ -145,7 +145,15 @@ private:
                                      const nlohmann::json& params,
                                      size_t client_index = 0,
                                      bool should_try_next = true);
-    std::shared_ptr<cpr::Session> session = std::make_shared<cpr::Session>();
+
+    std::map<std::string, std::queue<std::shared_ptr<cpr::Session>>> client_sessions;
+
+    // Gets or creates a cpr Session for the given URL (if it is added in clients)
+    // This function DOES NOT lock the mutex; it assumes the caller already has!
+    std::shared_ptr<cpr::Session> get_client_session(const std::string& url);
+
+    std::chrono::milliseconds request_timeout{DEFAULT_TIMEOUT};
+
     std::mutex mutex;
 };
 }; // namespace ethyl

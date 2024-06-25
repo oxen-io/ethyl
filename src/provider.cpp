@@ -52,8 +52,9 @@ Provider::~Provider()
 {
 }
 
-void Provider::setTimeout(std::chrono::milliseconds request_timeout) {
-    session->SetOption(cpr::Timeout(request_timeout));
+void Provider::setTimeout(std::chrono::milliseconds timeout) {
+    std::lock_guard lk{mutex};
+    this->request_timeout = timeout;
 }
 
 void Provider::addClient(std::string name, std::string url) {
@@ -61,7 +62,31 @@ void Provider::addClient(std::string name, std::string url) {
     if (url.empty())
         throw std::invalid_argument{"Provider URL is empty."};
     std::lock_guard lk{mutex};
+    if (client_sessions.contains(url))
+    {
+        throw std::invalid_argument{"Provider URL was already added."};
+    }
     clients.emplace_back(Client{std::move(name), std::move(url)});
+}
+
+std::shared_ptr<cpr::Session> Provider::get_client_session(const std::string& url)
+{
+    if (url.empty())
+        throw std::invalid_argument{"Attempting to get session for empty URL"};
+
+    auto& sessions = client_sessions[url];
+    if (sessions.empty())
+    {
+        auto session = std::make_shared<cpr::Session>();
+        session->SetUrl(url);
+        session->SetTimeout(request_timeout);
+        return session;
+    }
+    auto session = std::move(sessions.front());
+    sessions.pop();
+    session->SetTimeout(request_timeout);
+
+    return session;
 }
 
 bool Provider::connectToNetwork() {
@@ -134,8 +159,6 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     cpr::Body body(bodyJson.dump());
     log::debug(logcat, "cpr::Body: {}", body.str());
 
-    session->SetBody(body);
-    session->SetHeader({{"Content-Type", "application/json"}});
 
     // TODO(doyle): It is worth it in the future to give stats on which
     // client failed and return it to the caller so that they can have some
@@ -146,8 +169,11 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         cb(std::nullopt);
         return;
     }
-    session->SetUrl(clients[client_index].url);
-    auto post_cb = [self=weak_from_this(), cb=std::move(cb), method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
+    auto url = clients[client_index].url.str();
+    auto session = get_client_session(url);
+    session->SetBody(body);
+    session->SetHeader({{"Content-Type", "application/json"}});
+    auto post_cb = [self=weak_from_this(), cb=std::move(cb), url=std::move(url), session, method, params, prev_client_index=client_index, should_try_next](cpr::Response r){
         log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
 
         auto ptr = self.lock();
@@ -155,6 +181,8 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         if (not ptr)
             return; // Provider is gone, drop response
         std::unique_lock lk{ptr->mutex};
+
+        ptr->client_sessions.at(url).push(std::move(session));
 
         std::optional<nlohmann::json> result_json;
         if (result_json = get_json_result(r); result_json)
