@@ -127,16 +127,8 @@ public:
     void getLatestHeightAsync(optional_callback<uint64_t> user_cb);
     FeeData getFeeData();
 
-    /// List of clients for interacting with the Ethereum network via RPC
-    /// The order of the clients dictates the order in which a request is
-    /// attempted.
-    std::vector<Client>                      clients;
+    size_t numClients();
 
-
-    /// Allows the user to specify a different order in which to try provider clients
-    /// if the user finds that one or more clients is performing badly.  This is
-    /// separate from `clients` so that the order in `clients` remains stable.
-    std::vector<size_t> client_order;
 
     void setClientOrder(std::vector<size_t> order);
 
@@ -154,6 +146,16 @@ public:
     void getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb);
 
 private:
+
+    /// List of clients for interacting with the Ethereum network via RPC
+    /// The order of the clients dictates the order in which a request is
+    /// attempted.
+    std::vector<Client>                      clients;
+
+    /// Allows the user to specify a different order in which to try provider clients
+    /// if the user finds that one or more clients is performing badly.  This is
+    /// separate from `clients` so that the order in `clients` remains stable.
+    std::vector<size_t> client_order;
 
     std::map<std::string, std::queue<std::shared_ptr<cpr::Session>>> client_sessions;
 

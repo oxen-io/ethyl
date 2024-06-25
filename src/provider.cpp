@@ -70,6 +70,12 @@ void Provider::addClient(std::string name, std::string url) {
     client_order.push_back(clients.size() - 1);
 }
 
+size_t Provider::numClients()
+{
+    std::lock_guard lk{mutex};
+    return clients.size();
+}
+
 void Provider::setClientOrder(std::vector<size_t> order)
 {
     std::lock_guard lk{mutex};

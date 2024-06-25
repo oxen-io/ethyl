@@ -91,7 +91,7 @@ std::string Signer::secretKeyToAddressString(std::span<const unsigned char> seck
 
 void Signer::populateTransaction(Transaction& tx, std::string senderAddress) {
     // Check if the signer has a client
-    if (provider->clients.empty())
+    if (!provider->numClients())
         throw std::runtime_error("Signer does not have a provider with any RPC backends set. Ensure that the provider has atleast one client");
 
     // If nonce is not set, get it from the network
