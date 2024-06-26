@@ -184,6 +184,7 @@ void Provider::makeJsonRpcRequest(std::string_view method,
 
     if (client_indices.empty())
     {
+        lock.unlock();
         log::warning(logcat, "attempting jsonrpc request to eth provider, but client_order is empty.  You get nothing!  You lose!  Good day, sir!");
         cb(std::nullopt);
         return;
@@ -197,13 +198,13 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     bodyJson["method"]  = method;
     bodyJson["params"]  = params;
     bodyJson["id"]      = 1;
-    log::debug(logcat, "making rpc request with body {}", bodyJson.dump());
     cpr::Body body(bodyJson.dump());
-    log::debug(logcat, "cpr::Body: {}", body.str());
+    log::debug(logcat, "making rpc request with body {}", body.data());
 
 
     if (client_index >= clients.size())
     {
+        lock.unlock();
         log::debug(logcat, "Attempting to use provider client with index ({}) out of bounds.", client_index);
         cb(std::nullopt);
         return;
@@ -213,15 +214,17 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     session->SetBody(body);
     session->SetHeader({{"Content-Type", "application/json"}});
     auto post_cb = [self=weak_from_this(), cb=std::move(cb), url=std::move(url), session, method, params, client_indices=std::move(client_indices), should_try_next](cpr::Response r){
-        log::debug(logcat, "entering makeJsonRpcRequest PostCallback callback");
+        log::trace(logcat, "entering makeJsonRpcRequest PostCallback callback");
 
         auto ptr = self.lock();
 
         if (not ptr)
             return; // Provider is gone, drop response
-        std::unique_lock lk{ptr->mutex};
 
-        ptr->client_sessions.at(url).push(std::move(session));
+        {
+            std::unique_lock lk{ptr->mutex};
+            ptr->client_sessions.at(url).push(std::move(session));
+        }
 
         // TODO(doyle): It is worth it in the future to give stats on which
         // client failed and return it to the caller so that they can have some
@@ -229,15 +232,15 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         std::optional<nlohmann::json> result_json;
         if (result_json = get_json_result(r); result_json)
         {
-            lk.unlock();
+#ifndef NDEBUG
             log::debug(logcat, "makeJsonRpcRequest returning: {}", result_json->dump());
+#endif
             cb(result_json);
             return;
         }
 
         if (should_try_next and not client_indices.empty())
         {
-            lk.unlock();
             ptr->makeJsonRpcRequest(method, params, std::move(cb), std::move(client_indices), true);
             return;
         }
