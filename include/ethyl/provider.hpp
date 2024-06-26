@@ -131,6 +131,7 @@ public:
 
     std::vector<Client> getClients();
 
+    std::vector<size_t> getClientOrder();
     void setClientOrder(std::vector<size_t> order);
 
     void makeJsonRpcRequest(std::string_view method,

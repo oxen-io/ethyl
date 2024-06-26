@@ -82,6 +82,11 @@ std::vector<Client> Provider::getClients()
     return clients;
 }
 
+std::vector<size_t> Provider::getClientOrder()
+{
+    std::lock_guard lk{mutex};
+    return client_order;
+}
 void Provider::setClientOrder(std::vector<size_t> order)
 {
     std::lock_guard lk{mutex};
