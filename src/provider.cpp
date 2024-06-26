@@ -760,8 +760,6 @@ void Provider::getLatestHeightAsync(optional_callback<uint64_t> user_cb)
 
     auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
         auto height = parseHeightResponse(r);
-        if (!height)
-            user_cb(std::nullopt);
         user_cb(height);
     };
 
