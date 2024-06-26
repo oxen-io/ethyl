@@ -783,8 +783,6 @@ std::vector<HeightInfo> Provider::getAllHeights()
 
 void Provider::getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb)
 {
-    std::lock_guard lk{mutex};
-
     struct full_request {
         std::vector<HeightInfo> infos;
         std::atomic<size_t> done_count{0};
@@ -792,10 +790,10 @@ void Provider::getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> u
     };
 
     auto req = std::make_shared<full_request>();
-    req->infos.resize(clients.size());
+    req->infos.resize(numClients());
     req->user_cb = std::move(user_cb);
 
-    for (size_t i=0; i < clients.size(); i++)
+    for (size_t i=0; i < req->infos.size(); i++)
     {
         req->infos[i].index = i;
         auto cb = [i, req](std::optional<nlohmann::json> r){
