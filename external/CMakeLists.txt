@@ -43,6 +43,11 @@ if(NOT TARGET oxenc::oxenc)
     system_or_submodule(OXENC oxenc liboxenc>=1.1.0 oxen-encoding)
 endif()
 
+if(NOT TARGET oxen::logging)
+    add_subdirectory(oxen-logging)
+endif()
+oxen_logging_add_source_dir("${PROJECT_SOURCE_DIR}")
+
 #
 # nlohmann_json
 #

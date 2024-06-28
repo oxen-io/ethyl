@@ -6,38 +6,22 @@
 #include <string>
 #include <array>
 #include <vector>
-#include <sstream>
-#include <iomanip>
-#include <ios>
 
 #include <oxenc/common.h>
 #include <oxenc/hex.h>
 
+namespace ethyl
+{
+using ECDSACompactSignature = std::array<unsigned char, 64 + 1 /*recovery id*/>;
+using Bytes20 = std::array<unsigned char, 20>;
+using Bytes32 = std::array<unsigned char, 32>;
+
 namespace utils
 {
-
     enum class PaddingDirection {
         LEFT,
         RIGHT
     };
-
-    template <typename Container>
-    std::string toHexString(const Container& bytes) {
-        std::ostringstream oss;
-        for(const auto byte : bytes) {
-            oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(static_cast<unsigned char>(byte));
-        }                                                                                                                     
-        return oss.str();                                                                                                     
-    }
-
-    template <typename Container>
-    std::string toHexStringBigEndian(const Container& bytes) {
-        std::ostringstream oss;
-        for(auto it = bytes.rbegin(); it != bytes.rend(); ++it) {
-            oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(static_cast<unsigned char>(*it));
-        }
-        return oss.str();
-    }
 
     std::string      decimalToHex(uint64_t decimal, bool prefixed_0x = false);
     std::string_view trimPrefix(std::string_view src, std::string_view prefix);
@@ -47,6 +31,7 @@ namespace utils
     template <basic_char Char = unsigned char>
     std::vector<Char> fromHexString(std::string_view hexStr) {
         hexStr = trimPrefix(hexStr, "0x");
+        hexStr = trimPrefix(hexStr, "0X");
 
         if (!oxenc::is_hex(hexStr))
             throw std::invalid_argument{"input string is not hex"};
@@ -75,22 +60,21 @@ namespace utils
     extern template std::array<char, 32> fromHexString32Byte<char>(std::string_view);
     extern template std::array<unsigned char, 32> fromHexString32Byte<unsigned char>(std::string_view);
 
+    uint64_t hexStringToU64(std::string_view hexStr);
 
-    uint64_t fromHexStringToUint64(std::string_view hexStr);
+    std::string padToNBytes(std::string_view hexInput, size_t bytes, PaddingDirection direction = PaddingDirection::LEFT);
 
-    std::string padToNBytes(std::string_view hex_input, size_t bytes, PaddingDirection direction = PaddingDirection::LEFT);
-    inline std::string padTo8Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
-        return padToNBytes(hex_input, 8, direction);
+    inline std::string padTo8Bytes(std::string_view hexInput, PaddingDirection direction = PaddingDirection::LEFT) {
+        return padToNBytes(hexInput, 8, direction);
     }
 
-    inline std::string padTo32Bytes(std::string_view hex_input, PaddingDirection direction = PaddingDirection::LEFT) {
-        return padToNBytes(hex_input, 32, direction);
+    inline std::string padTo32Bytes(std::string_view hexInput, PaddingDirection direction = PaddingDirection::LEFT) {
+        return padToNBytes(hexInput, 32, direction);
     }
 
-
-    /// Parses an integer of some sort from a string, requiring that the entire string be consumed
-    /// during parsing.  Return false if parsing failed, sets `value` and returns true if the entire
-    /// string was consumed.
+    /// Parses an integer of some sort from a string, requiring that the entire
+    /// string be consumed during parsing.  Return false if parsing failed, sets
+    /// `value` and returns true if the entire string was consumed.
     template <typename T>
     bool parseInt(const std::string_view str, T& value, int base = 10) {
         T tmp;
@@ -102,11 +86,26 @@ namespace utils
         return true;
     }
 
-    std::array<unsigned char, 32> hash(std::string_view in);
+    /// Hashes a hex string into a 32-byte hash using keccak by first converting
+    /// the hex to bytes. The hex string is allowed to start with '0x' and '0X'.
+    /// Passing bytes to this function will throw an `invalid_argument`
+    /// exception.
+    Bytes32 hashHex(std::string_view hex);
 
-    std::string getFunctionSignature(const std::string& function);
+    /// Hash the bytes into a 32-byte hash using keccak.
+    Bytes32 hashBytesPtr(const void *bytes, size_t size);
+
+    /// See `hashBytesPtr`
+    Bytes32 hashBytes(std::span<const char> bytes);
+
+    /// See `hashBytesPtr`
+    Bytes32 hashBytes(std::span<const unsigned char> bytes);
+
+    /// Get the function signature for Ethereum contract interaction via an ABI
+    /// call
+    std::string toEthFunctionSignature(std::string_view function);
 
     std::string trimAddress(const std::string& address);
+}  // namespace ethyl::utils
+};
 
-// END
-}
