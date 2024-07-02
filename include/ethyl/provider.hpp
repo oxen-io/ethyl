@@ -20,10 +20,6 @@ using namespace std::literals;
 
 namespace ethyl
 {
-struct ReadCallData {
-    std::string contractAddress;
-    std::string data;
-};
 
 struct FeeData {
     uint64_t gasPrice;
@@ -86,10 +82,10 @@ public:
 
     uint64_t getTransactionCount(std::string_view address, std::string_view blockTag);
     void getTransactionCountAsync(std::string_view address, std::string_view blockTag, optional_callback<uint64_t> user_cb);
-    nlohmann::json callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber = "latest");
-    void callReadFunctionJSONAsync(const ReadCallData& callData, json_result_callback user_cb, std::string_view blockNumber = "latest");
-    std::string    callReadFunction(const ReadCallData& callData, std::string_view blockNumber = "latest");
-    std::string    callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt);
+    nlohmann::json callReadFunctionJSON(std::string_view address, std::string_view data, std::string_view blockNumber = "latest");
+    void callReadFunctionJSONAsync(std::string_view address, std::string_view data, json_result_callback user_cb, std::string_view blockNumber = "latest");
+    std::string callReadFunction(std::string_view address, std::string_view data, std::string_view blockNumber = "latest");
+    std::string callReadFunction(std::string_view address, std::string_view data, uint64_t blockNumber);
 
     uint32_t getNetworkChainId();
     void getNetworkChainIdAsync(optional_callback<uint32_t> user_cb);

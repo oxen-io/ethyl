@@ -1,6 +1,5 @@
 // provider.cpp
 #include <chrono>
-#include <iostream>
 #include <thread>
 
 #include <cpr/cpr.h>
@@ -260,9 +259,10 @@ std::optional<nlohmann::json> Provider::makeJsonRpcRequest(std::string_view meth
     return waiter.get();
 }
 
-nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std::string_view blockNumber) {
+nlohmann::json Provider::callReadFunctionJSON(
+        std::string_view address, std::string_view data, std::string_view blockNumber) {
     JsonResultWaiter waiter;
-    callReadFunctionJSONAsync(callData, waiter.cb(), blockNumber);
+    callReadFunctionJSONAsync(address, data, waiter.cb(), blockNumber);
     auto result = waiter.get();
 
     if (!result)
@@ -270,27 +270,25 @@ nlohmann::json Provider::callReadFunctionJSON(const ReadCallData& callData, std:
     return *result;
 }
 
-void Provider::callReadFunctionJSONAsync(const ReadCallData& callData, json_result_callback user_cb, std::string_view blockNumber) {
-    // Prepare the params for the eth_call request
-    nlohmann::json params  = nlohmann::json::array();
-    params[0]["to"]        = callData.contractAddress;
-    params[0]["data"]      = callData.data;
-    params[1]              = blockNumber; // use the provided block number or default to "latest"
-
-    makeJsonRpcRequest("eth_call", params, std::move(user_cb));
+void Provider::callReadFunctionJSONAsync(
+        std::string_view address,
+        std::string_view data,
+        json_result_callback user_cb,
+        std::string_view blockNumber) {
+    makeJsonRpcRequest(
+            "eth_call",
+            nlohmann::json{{{"to", address}, {"data", data}}, blockNumber},
+            std::move(user_cb));
 }
 
-std::string Provider::callReadFunction(const ReadCallData& callData, std::string_view blockNumber) {
-    std::string result = callReadFunctionJSON(callData, blockNumber);
-    return result;
+std::string Provider::callReadFunction(
+        std::string_view address, std::string_view data, std::string_view blockNumber) {
+    return callReadFunctionJSON(address, data, blockNumber).get<std::string>();
 }
 
-std::string Provider::callReadFunction(const ReadCallData& callData, uint64_t blockNumberInt) {
-    std::stringstream stream;
-    stream << "0x" << std::hex << blockNumberInt; // Convert uint64_t to hex string
-    std::string blockNumberHex = stream.str();
-    std::string result         = callReadFunctionJSON(callData, blockNumberHex);
-    return result;
+std::string Provider::callReadFunction(
+        std::string_view address, std::string_view data, uint64_t blockNumber) {
+    return callReadFunction(address, data, utils::decimalToHex(blockNumber, true));
 }
 
 uint32_t Provider::getNetworkChainId() {
@@ -457,6 +455,31 @@ std::vector<LogEntry> Provider::getLogs(uint64_t block, std::string_view address
     return getLogs(block, block, address);
 }
 
+template <typename T = std::string>
+static std::optional<T> maybe_get(const nlohmann::json& e, const std::string& key) {
+    std::optional<T> result;
+    if (auto it = e.find(key); it != e.end() && !it->is_null())
+        it->get_to(result.emplace());
+    return result;
+}
+
+static std::optional<uint64_t> maybe_get_u64_hex(const nlohmann::json& e, const std::string& key) {
+    std::optional<uint64_t> result;
+    if (auto result_hex = maybe_get(e, key))
+        result = utils::hexStringToU64(*result_hex);
+    return result;
+}
+
+static std::optional<uint32_t> maybe_get_u32_hex(const nlohmann::json& e, const std::string& key) {
+    std::optional<uint32_t> result;
+    if (auto val = maybe_get_u64_hex(e, key)) {
+        if (*val > std::numeric_limits<uint32_t>::max())
+            throw std::runtime_error{"Error " + key + " value > uint32_t max"};
+        result = static_cast<uint32_t>(*val);
+    }
+    return result;
+}
+
 void Provider::getLogsAsync(uint64_t fromBlock, uint64_t toBlock, std::string_view address, optional_callback<std::vector<LogEntry>> user_cb)
 {
     nlohmann::json params = nlohmann::json::array();
@@ -480,33 +503,16 @@ void Provider::getLogsAsync(uint64_t fromBlock, uint64_t toBlock, std::string_vi
             try
             {
                 LogEntry logEntry;
-                logEntry.address = logJson.contains("address") ? logJson["address"].get<std::string>() : "";
-
-                if (logJson.contains("topics")) {
-                    for (const auto& topic : logJson["topics"]) {
-                        logEntry.topics.push_back(topic.get<std::string>());
-                    }
-                }
-
-                logEntry.data = logJson.contains("data") ? logJson["data"].get<std::string>() : "";
-                logEntry.blockNumber = logJson.contains("blockNumber") ? std::make_optional(utils::hexStringToU64(logJson["blockNumber"].get<std::string>())) : std::nullopt;
-                logEntry.transactionHash = logJson.contains("transactionHash") ? std::make_optional(logJson["transactionHash"].get<std::string>()) : std::nullopt;
-                logEntry.transactionIndex = logJson.contains("transactionIndex") ? std::make_optional(utils::hexStringToU64(logJson["transactionIndex"].get<std::string>())) : std::nullopt;
-                logEntry.blockHash = logJson.contains("blockHash") ? std::make_optional(logJson["blockHash"].get<std::string>()) : std::nullopt;
-
-                if (logJson.contains("logIndex"))
-                {
-                    uint64_t log_index;
-                    if (!utils::parseInt(logJson["logIndex"].get<std::string>(), log_index))
-                        throw std::runtime_error{"Error parsing logIndex element as uint64_t"};
-                    if (log_index > std::numeric_limits<uint32_t>::max())
-                        throw std::runtime_error{"Error logIndex element > uint32_t max"};
-                    logEntry.logIndex = static_cast<uint32_t>(log_index);
-                }
-                else
-                    logEntry.logIndex = std::nullopt;
-
-                logEntry.removed = logJson.contains("removed") ? logJson["removed"].get<bool>() : false;
+                logEntry.address = logJson.at("address").get<std::string>();
+                if (auto it = logJson.find("topics"); it != logJson.end())
+                    it->get_to(logEntry.topics);
+                logJson.at("data").get_to(logEntry.data);
+                logEntry.blockNumber = maybe_get_u64_hex(logJson, "blockNumber");
+                logEntry.transactionHash = maybe_get(logJson, "transactionHash");
+                logEntry.transactionIndex = maybe_get_u32_hex(logJson, "transactionIndex");
+                logEntry.blockHash = maybe_get(logJson, "blockHash");
+                logEntry.logIndex = maybe_get_u32_hex(logJson, "logIndex");
+                logEntry.removed = maybe_get<bool>(logJson, "removed").value_or(false);
 
                 logEntries.push_back(logEntry);
             }
