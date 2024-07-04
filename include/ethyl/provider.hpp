@@ -93,6 +93,14 @@ public:
     void evm_snapshot_async(json_result_callback cb);
     bool evm_revert(std::string_view snapshotId);
 
+    // Enables or disables, based on the single boolean argument, the automatic
+    // mining of new blocks with each new transaction submitted to the network.
+    // You can use hardhat_getAutomine to get the current value.
+    bool evm_setAutomine(bool enable);
+
+    // Force a block to be mined. Takes no parameters. Mines a block independent
+    // of whether or not mining is started or stopped.
+    bool evm_mine();
     uint64_t evm_increaseTime(std::chrono::seconds seconds);
 
     std::optional<nlohmann::json> getTransactionByHash(std::string_view transactionHash);
