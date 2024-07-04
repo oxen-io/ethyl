@@ -118,10 +118,10 @@ TEST_CASE( "Does a self transfer on network using signer to populate", "[transac
     REQUIRE(signer.provider->transactionSuccessful(hash));
 }
 
-TEST_CASE( "Test multiple clients", "[provider]" ) {
-    auto provider       = Provider::make_provider();
-    provider->connectTimeout = std::chrono::milliseconds(1000);
-    REQUIRE(provider->addClient("This client should fail", "0.0.0.0:80")     == true);
-    REQUIRE(provider->addClient("Client",                  "127.0.0.1:8545") == true);
-    REQUIRE(provider->connectToNetwork());
+TEST_CASE("Test multiple clients", "[provider]") {
+    auto provider = Provider::make_provider();
+    provider->setTimeout(std::chrono::milliseconds(1000));
+    provider->addClient("Client", "127.0.0.1:8545");
+    provider->addClient("Bad Client", "127.0.0.1:8546"); // Add non-existent client
+    CHECK(provider->connectToNetwork());
 }
