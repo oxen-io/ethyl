@@ -119,7 +119,7 @@ std::shared_ptr<cpr::Session> Provider::get_client_session(const std::string& ur
 
 bool Provider::connectToNetwork() {
     // Here we can verify connection by calling some simple JSON RPC method like `net_version`
-    auto result = makeJsonRpcRequest("net_version", cpr::Body("{}"));
+    auto result = makeJsonRpcRequest("net_version", nlohmann::json::array());
     if (result) {
         log::debug(logcat, "Connected to the Ethereum network.");
     } else {
@@ -199,7 +199,6 @@ void Provider::makeJsonRpcRequest(std::string_view method,
     bodyJson["id"]      = 1;
     cpr::Body body(bodyJson.dump());
     log::debug(logcat, "making rpc request with body {}", body.data());
-
 
     if (client_index >= clients.size())
     {

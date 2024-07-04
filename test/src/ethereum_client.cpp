@@ -122,6 +122,6 @@ TEST_CASE("Test multiple clients", "[provider]") {
     auto provider = Provider::make_provider();
     provider->setTimeout(std::chrono::milliseconds(1000));
     provider->addClient("Client", "127.0.0.1:8545");
-    provider->addClient("Client", "127.0.0.1:8546"); // Add non-existent client
+    provider->addClient("Bad Client", "127.0.0.1:8546"); // Add non-existent client
     CHECK(provider->connectToNetwork());
 }
