@@ -97,6 +97,7 @@ target_link_libraries(
     secp256k1
     nlohmann_json::nlohmann_json
     oxenc::oxenc
+    oxen::logging
     ethyl-keccak
   PRIVATE
     gmp
