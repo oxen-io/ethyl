@@ -735,7 +735,7 @@ std::string Provider::getContractDeployedInLatestBlock() {
         throw std::runtime_error("Failed to get the latest block");
 
     nlohmann::json blockJson = *result;
-    for (const auto& tx : blockJson["result"]["transactions"]) {
+    for (const auto& tx : blockJson["transactions"]) {
         std::optional<nlohmann::json> transactionReceipt = getTransactionReceipt(tx["hash"].get<std::string>());
         if (transactionReceipt.has_value())
             return transactionReceipt->at("contractAddress").get<std::string>();
