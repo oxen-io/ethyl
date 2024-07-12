@@ -207,7 +207,7 @@ void Provider::makeJsonRpcRequest(std::string_view method,
         cb(std::nullopt);
         return;
     }
-    auto url = clients[client_index].url.str();
+    auto url = clients[client_index].url;
     auto session = get_client_session(url);
     session->SetBody(body);
     session->SetHeader({{"Content-Type", "application/json"}});

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <forward_list>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <optional>
@@ -9,14 +10,16 @@
 #include <chrono>
 #include <mutex>
 
-#include <cpr/cprtypes.h>
-#include <cpr/session.h>
 #include <nlohmann/json_fwd.hpp>
 
 #include "transaction.hpp"
 #include "logs.hpp"
 
 using namespace std::literals;
+
+namespace cpr {
+class Session;
+}
 
 namespace ethyl
 {
@@ -32,7 +35,7 @@ struct FeeData {
 
 struct Client {
     std::string name;
-    cpr::Url url;
+    std::string url;
 };
 
 struct HeightInfo {
