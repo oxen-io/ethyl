@@ -861,4 +861,4 @@ FeeData Provider::getFeeData() {
     return FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
 }
 
-}; // namespace ethyl
+} // namespace ethyl

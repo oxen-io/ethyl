@@ -52,4 +52,4 @@ private:
     uint64_t gasPrice = 0;
 
 };
-}; // namespace ethyl
+} // namespace ethyl

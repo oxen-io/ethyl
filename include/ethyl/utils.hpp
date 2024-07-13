@@ -107,5 +107,5 @@ namespace utils
 
     std::string trimAddress(const std::string& address);
 }  // namespace ethyl::utils
-};
+}
 

@@ -201,4 +201,4 @@ std::string Signer::sendTransaction(Transaction& tx, std::span<const unsigned ch
     const auto result = provider->sendTransaction(tx);
     return result;
 }
-}; // namespace ethyl
+} // namespace ethyl

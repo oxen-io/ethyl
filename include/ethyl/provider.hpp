@@ -176,4 +176,4 @@ private:
 
     std::mutex mutex;
 };
-}; // namespace ethyl
+} // namespace ethyl
