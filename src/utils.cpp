@@ -128,4 +128,4 @@ std::string utils::trimAddress(const std::string& address) {
     // Trim and return the address
     return "0x" + address.substr(firstNonZero, 40);
 }
-};  // namespace ethyl
+}  // namespace ethyl

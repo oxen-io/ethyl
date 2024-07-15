@@ -4,7 +4,7 @@
 
 
 if(${PROJECT_NAME}_ENABLE_CRYPTO_LIBRARY)
-    add_library(ethyl-keccak crypto/keccak.cpp)
+    add_library(ethyl-keccak STATIC crypto/keccak.cpp)
     target_include_directories(ethyl-keccak PUBLIC .)
     target_link_libraries(ethyl-keccak PRIVATE oxenc::oxenc)
 else()

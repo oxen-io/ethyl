@@ -11,7 +11,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(BUILD_SHARED_LIBS "Build libraries as shared libraries" ON)
 
-Include(FetchContent)
+# This is mainly useful for system packaging to create libquic.so.x.y instead of just libquic.so:
+option(${PROJECT_NAME}_VERSION_SO "Add the project major/minor version into the shared library filename" OFF)
 
 #
 # Unit testing
@@ -63,3 +64,12 @@ if(${PROJECT_NAME}_ENABLE_ASAN)
     add_compile_options(-fsanitize=address)
     add_link_options(-fsanitize=address)
 endif()
+
+
+if (${PROJECT_NAME}_IS_TOPLEVEL_PROJECT OR BUILD_SHARED_LIBS)
+    set(${PROJECT_NAME}_INSTALL_DEFAULT ON)
+else()
+    set(${PROJECT_NAME}_INSTALL_DEFAULT OFF)
+endif()
+option(${PROJECT_NAME}_INSTALL "Add libraries/headers to cmake install target; defaults to ON if BUILD_SHARED_LIBS is enabled or we are the top-level project"
+    ${${PROJECT_NAME}_IS_TOPLEVEL_PROJECT})

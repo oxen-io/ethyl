@@ -14,7 +14,7 @@ set(BUILD_SHARED_LIBS OFF)
 #
 if(NOT TARGET cpr::cpr)
     set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "")
-    add_subdirectory(cpr)
+    add_subdirectory(cpr EXCLUDE_FROM_ALL)
 endif()
 
 #
@@ -27,13 +27,13 @@ set(SECP256K1_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SECP256K1_BUILD_EXHAUSTIVE_TESTS OFF CACHE BOOL "" FORCE)
 set(SECP256K1_BUILD_CTIME_TESTS OFF CACHE BOOL "" FORCE)
 set(SECP256K1_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-system_or_submodule(SECP256K1 secp256k1 libsecp256k1 secp256k1)
+system_or_submodule(SECP256K1 secp256k1 libsecp256k1>=0.2 secp256k1)
 
 #
 # Catch2
 #
 if(NOT TARGET Catch2)
-    add_subdirectory(Catch2)
+    add_subdirectory(Catch2 EXCLUDE_FROM_ALL)
 endif()
 
 #
@@ -44,7 +44,7 @@ if(NOT TARGET oxenc::oxenc)
 endif()
 
 if(NOT TARGET oxen::logging)
-    add_subdirectory(oxen-logging)
+    add_subdirectory(oxen-logging EXCLUDE_FROM_ALL)
 endif()
 oxen_logging_add_source_dir("${PROJECT_SOURCE_DIR}")
 

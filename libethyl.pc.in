@@ -1,0 +1,13 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: libethyl
+Description: Ethereum RPC provider communication library for C++
+Version: @PROJECT_VERSION@
+
+Libs: -L${libdir} -lethyl
+Libs.private: @PRIVATE_LIBS@
+Requires: liboxenc nlohmann_json
+Cflags: -I${includedir}

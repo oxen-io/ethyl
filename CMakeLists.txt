@@ -6,6 +6,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Project details
 #
 
+# When bumping the version, bump the 3rd version for source-only changes (i.e. no API changes in
+# headers), and the 2nd version if anything in the headers change.
 project(
   ethyl
   VERSION 0.1.0
@@ -53,7 +55,6 @@ add_subdirectory(src/ethyl-keccak)
 
 add_library(
     ${PROJECT_NAME}
-    ${headers}
     ${sources}
 )
 
@@ -71,8 +72,14 @@ set_target_properties(
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
 )
+if(${PROJECT_NAME}_VERSION_SO)
+  set_target_properties(
+      ${PROJECT_NAME}
+      PROPERTIES
+      SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+endif()
+
 
 message(STATUS "Added all header and implementation files.\n")
 
@@ -93,13 +100,13 @@ verbose_message("Applied compiler warnings.\n")
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
-    cpr::cpr
-    secp256k1
     nlohmann_json::nlohmann_json
     oxenc::oxenc
+    secp256k1
+  PRIVATE
+    cpr::cpr
     oxen::logging
     ethyl-keccak
-  PRIVATE
     gmp
     gmpxx
 )
@@ -137,3 +144,21 @@ configure_file(
 
 message(STATUS "Finished building requirements for installing the package.\n")
 
+if(${PROJECT_NAME}_INSTALL)
+    include(GNUInstallDirs)
+
+    install(
+        DIRECTORY include/ethyl
+        TYPE INCLUDE
+        FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h")
+
+    install(
+        TARGETS ${PROJECT_NAME}
+        EXPORT ethylConfig
+        DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+    configure_file(libethyl.pc.in libethyl.pc @ONLY)
+    install(
+        FILES ${CMAKE_CURRENT_BINARY_DIR}/libethyl.pc
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+endif()
