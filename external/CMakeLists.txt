@@ -13,8 +13,25 @@ set(BUILD_SHARED_LIBS OFF)
 # CPR
 #
 if(NOT TARGET cpr::cpr)
-    set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "")
-    add_subdirectory(cpr EXCLUDE_FROM_ALL)
+    find_package(CURL REQUIRED COMPONENTS HTTP HTTPS SSL)
+    file(GLOB cpr_sources ${conf_depends} cpr/cpr/*.cpp)
+    file(READ cpr/CMakeLists.txt cpr_cmakelists_txt)
+    if(NOT cpr_cmakelists_txt MATCHES "project\\(cpr VERSION ([0-9]+)\\.([0-9]+)\\.([0-9]+) LANGUAGES CXX\\)")
+        message(FATAL_ERROR "Failed to detect cpr version")
+    endif()
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/cpr)
+    set(cpr_VERSION_MAJOR "${CMAKE_MATCH_1}")
+    set(cpr_VERSION_MINOR "${CMAKE_MATCH_2}")
+    set(cpr_VERSION_PATCH "${CMAKE_MATCH_3}")
+    set(cpr_VERSION "${cpr_VERSION_MAJOR}.${cpr_VERSION_MINOR}.${cpr_VERSION_PATCH}")
+    set(cpr_VERSION_NUM "(${cpr_VERSION_MAJOR} * 0x10000 + ${cpr_VERSION_MINOR} * 0x100 + ${cpr_VERSION_PATCH})")
+    configure_file("cpr/cmake/cprver.h.in" "${CMAKE_CURRENT_BINARY_DIR}/include/cpr/cprver.h")
+
+    add_library(cpr STATIC EXCLUDE_FROM_ALL ${cpr_sources})
+    target_link_libraries(cpr PUBLIC CURL::libcurl)
+    target_include_directories(cpr PUBLIC cpr/include "${CMAKE_CURRENT_BINARY_DIR}/include")
+    target_compile_definitions(cpr PUBLIC CPR_CURL_NOSIGNAL)
+    add_library(cpr::cpr ALIAS cpr)
 endif()
 
 #
