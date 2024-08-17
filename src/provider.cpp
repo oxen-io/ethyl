@@ -35,7 +35,7 @@ struct JsonResultWaiter
 
     Provider::optional_callback<T> cb() {
         return [this](std::optional<T> r) {
-            p.set_value(r);
+            p.set_value(std::move(r));
         };
     }
 
@@ -47,13 +47,9 @@ Provider::Provider()
     setTimeout(DEFAULT_TIMEOUT);
 }
 
-Provider::~Provider()
-{
-}
-
 void Provider::setTimeout(std::chrono::milliseconds timeout) {
     std::lock_guard lk{mutex};
-    this->request_timeout = timeout;
+    request_timeout = timeout;
 }
 
 void Provider::addClient(std::string name, std::string url) {
@@ -118,8 +114,8 @@ std::shared_ptr<cpr::Session> Provider::get_client_session(const std::string& ur
 }
 
 bool Provider::connectToNetwork() {
-    // Here we can verify connection by calling some simple JSON RPC method like `net_version`
-    auto result = makeJsonRpcRequest("net_version", nlohmann::json::array());
+    // Here we can verify connection by calling some simple JSON RPC method like `eth_chainId`
+    auto result = makeJsonRpcRequest("eth_chainId", nlohmann::json::array());
     if (result) {
         log::debug(logcat, "Connected to the Ethereum network.");
     } else {
@@ -290,9 +286,9 @@ std::string Provider::callReadFunction(
     return callReadFunction(address, data, utils::decimalToHex(blockNumber, true));
 }
 
-uint32_t Provider::getNetworkChainId() {
-    JsonResultWaiter<uint32_t> waiter;
-    getNetworkChainIdAsync(waiter.cb());
+uint64_t Provider::getChainId() {
+    JsonResultWaiter<uint64_t> waiter;
+    getChainIdAsync(waiter.cb());
     auto result = waiter.get();
 
     if (!result)
@@ -300,31 +296,36 @@ uint32_t Provider::getNetworkChainId() {
     return *result;
 }
 
-void Provider::getNetworkChainIdAsync(optional_callback<uint32_t> user_cb)
-{
-    nlohmann::json params = nlohmann::json::array();
-    auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
-        if (!r)
-        {
-            user_cb(std::nullopt);
-            return;
-        }
+static std::optional<uint64_t> parseHexNumResponse(
+        const std::optional<nlohmann::json>& r, std::string_view endpoint) {
+    if (!r) {
+        log::debug(logcat, "{} result empty", endpoint);
+        return std::nullopt;
+    }
+#ifndef NDEBUG
+    log::debug(logcat, "{} result: {}", endpoint, r->dump());
+#endif
 
-        uint64_t network_id;
-        if (utils::parseInt(r->get<std::string>(), network_id))
-        {
-            if (network_id > std::numeric_limits<uint32_t>::max()) {
-                log::warning(logcat, "Network ID ({}) does not fit into 32 bit unsigned integer", network_id);
-                user_cb(std::nullopt);
-                return;
-            }
-            user_cb(static_cast<uint32_t>(network_id));
-            return;
-        }
-        log::warning(logcat, "Failed to parse Network ID from json rpc response.");
-        user_cb(std::nullopt);
-    };
-    makeJsonRpcRequest("net_version", params, std::move(cb));
+    try {
+        return utils::hexStringToU64(r->get<std::string_view>());
+    } catch (const std::exception& e) {
+        log::warning(
+                logcat,
+                "Error parsing response from {}, input: {}: {}",
+                endpoint,
+                r->dump(),
+                e.what());
+        return std::nullopt;
+    }
+}
+
+void Provider::getChainIdAsync(optional_callback<uint64_t> user_cb) {
+    makeJsonRpcRequest(
+            "eth_chainId",
+            nlohmann::json::array(),
+            [user_cb = std::move(user_cb)](std::optional<nlohmann::json> r) {
+                user_cb(parseHexNumResponse(r, "eth_chainId"));
+            });
 }
 
 std::string Provider::evm_snapshot() {
@@ -744,31 +745,11 @@ std::string Provider::getContractDeployedInLatestBlock() {
     throw std::runtime_error("No contracts deployed in latest block");
 }
 
-std::optional<uint64_t> parseHeightResponse(const std::optional<nlohmann::json>& r)
-{
-    if (!r)
-    {
-        log::debug(logcat, "eth_blockNumber result empty");
-        return std::nullopt;
-    }
-    log::debug(logcat, "eth_blockNumber result: {}", r->dump());
-
-    try
-    {
-        uint64_t height = utils::hexStringToU64(r->get<std::string>());
-        return height;
-    }
-    catch (const std::exception& e)
-    {
-        log::warning(logcat, "Error parsing response from eth_blockNumber, input: {}", r->get<std::string>());
-        return std::nullopt;
-    }
-}
-
 uint64_t Provider::getLatestHeight() {
     JsonResultWaiter waiter;
     getLatestHeightAsync(waiter.cb());
     auto result = waiter.get();
+    if (!result)
         throw std::runtime_error("Failed to get the latest height");
     return *result;
 
@@ -779,53 +760,82 @@ void Provider::getLatestHeightAsync(optional_callback<uint64_t> user_cb)
     nlohmann::json params = nlohmann::json::array();
 
     auto cb = [user_cb=std::move(user_cb)](std::optional<nlohmann::json> r) {
-        auto height = parseHeightResponse(r);
+        auto height = parseHexNumResponse(r, "eth_blockNumber");
         user_cb(height);
     };
 
     makeJsonRpcRequest("eth_blockNumber", params, std::move(cb));
 }
 
-std::vector<HeightInfo> Provider::getAllHeights()
-{
-    JsonResultWaiter<std::vector<HeightInfo>> waiter;
+std::vector<HeightInfo> Provider::getAllHeights() {
     std::promise<std::vector<HeightInfo>> p;
-    auto fut = p.get_future();
-    auto cb = [&p](std::vector<HeightInfo> r) {
-        p.set_value(r);
-    };
-    getAllHeightsAsync(std::move(cb));
-    return fut.get();
+    getAllHeightsAsync([&p](std::vector<HeightInfo> r) { p.set_value(std::move(r)); });
+    return p.get_future().get();
 }
 
-void Provider::getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb)
-{
+std::vector<ChainIdInfo> Provider::getAllChainIds() {
+    std::promise<std::vector<ChainIdInfo>> p;
+    getAllChainIdsAsync([&p](std::vector<ChainIdInfo> r) { p.set_value(std::move(r)); });
+    return p.get_future().get();
+}
+
+namespace {
+
+    template <typename T>
     struct full_request {
-        std::vector<HeightInfo> infos;
-        std::atomic<size_t> done_count{0};
-        std::function<void(std::vector<HeightInfo>)> user_cb;
+        std::atomic<size_t> remaining;
+        std::function<void(std::vector<T>)> user_cb;
+        std::vector<T> result;
+
+        explicit full_request(size_t count, std::function<void(std::vector<T>)> cb) :
+                remaining{count}, user_cb{std::move(cb)} {
+            result.resize(count);
+        }
+
+        void done() {
+            assert(remaining);
+            if (!--remaining)
+                user_cb(std::move(result));
+        }
     };
 
-    auto req = std::make_shared<full_request>();
-    req->infos.resize(numClients());
-    req->user_cb = std::move(user_cb);
+}  // namespace
 
-    for (size_t i=0; i < req->infos.size(); i++)
-    {
-        req->infos[i].index = i;
-        auto cb = [i, req](std::optional<nlohmann::json> r){
-            auto height = parseHeightResponse(r);
-            if (height)
-            {
-                req->infos[i].height = *height;
-                req->infos[i].success = true;
+void Provider::getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb) {
+    auto clients = numClients();
+    if (clients == 0)
+        return user_cb(std::vector<HeightInfo>{});
+    auto req = std::make_shared<full_request<HeightInfo>>(numClients(), std::move(user_cb));
+
+    for (size_t i = 0; i < req->result.size(); i++) {
+        req->result[i].index = i;
+        auto cb = [&info = req->result[i], req](std::optional<nlohmann::json> r) mutable {
+            if (auto height = parseHexNumResponse(r, "eth_blockNumber")) {
+                info.height = *height;
+                info.success = true;
             }
-            if (++(req->done_count) == req->infos.size())
-            {
-                (req->user_cb)(std::move(req->infos));
-            }
+            req->done();
         };
         makeJsonRpcRequest("eth_blockNumber", nlohmann::json::array(), std::move(cb), {i}, false);
+    }
+}
+
+void Provider::getAllChainIdsAsync(std::function<void(std::vector<ChainIdInfo>)> user_cb) {
+    auto clients = numClients();
+    if (clients == 0)
+        return user_cb(std::vector<ChainIdInfo>{});
+    auto req = std::make_shared<full_request<ChainIdInfo>>(clients, std::move(user_cb));
+
+    for (size_t i = 0; i < req->result.size(); i++) {
+        req->result[i].index = i;
+        auto cb = [&info = req->result[i], req](std::optional<nlohmann::json> r) mutable {
+            if (auto chainid = parseHexNumResponse(r, "eth_chainId")) {
+                info.chainId = *chainid;
+                info.success = true;
+            }
+            req->done();
+        };
+        makeJsonRpcRequest("eth_chainId", nlohmann::json::array(), std::move(cb), {i}, false);
     }
 }
 
