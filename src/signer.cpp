@@ -100,7 +100,7 @@ void Signer::populateTransaction(Transaction& tx, std::string senderAddress) {
     }
 
     // Get network's chain ID
-    uint32_t networkChainId = provider->getNetworkChainId();
+    uint64_t networkChainId = provider->getChainId();
 
     // Check and set chainId
     if (tx.chainId != 0) {

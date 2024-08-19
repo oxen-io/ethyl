@@ -38,10 +38,15 @@ struct Client {
     std::string url;
 };
 
-struct HeightInfo {
+struct InfoBase {
     size_t index;
     bool success{false};
+};
+struct HeightInfo : InfoBase {
     uint64_t height{0};
+};
+struct ChainIdInfo : InfoBase {
+    uint64_t chainId{0};
 };
 
 struct Provider : public std::enable_shared_from_this<Provider> {
@@ -49,8 +54,6 @@ struct Provider : public std::enable_shared_from_this<Provider> {
 protected:
     Provider();
 public:
-
-    ~Provider();
 
     static std::shared_ptr<Provider> make_provider() {
         return std::shared_ptr<Provider>{new Provider{}};
@@ -90,8 +93,8 @@ public:
     std::string callReadFunction(std::string_view address, std::string_view data, std::string_view blockNumber = "latest");
     std::string callReadFunction(std::string_view address, std::string_view data, uint64_t blockNumber);
 
-    uint32_t getNetworkChainId();
-    void getNetworkChainIdAsync(optional_callback<uint32_t> user_cb);
+    uint64_t getChainId();
+    void getChainIdAsync(optional_callback<uint64_t> user_cb);
     std::string evm_snapshot();
     void evm_snapshot_async(json_result_callback cb);
     bool evm_revert(std::string_view snapshotId);
@@ -153,6 +156,9 @@ public:
 
     std::vector<HeightInfo> getAllHeights();
     void getAllHeightsAsync(std::function<void(std::vector<HeightInfo>)> user_cb);
+
+    std::vector<ChainIdInfo> getAllChainIds();
+    void getAllChainIdsAsync(std::function<void(std::vector<ChainIdInfo>)> user_cb);
 
 private:
 
