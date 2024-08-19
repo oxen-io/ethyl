@@ -47,9 +47,5 @@ public:
 
 private:
     secp256k1_context* ctx;
-    uint64_t maxPriorityFeePerGas = 0;
-    uint64_t maxFeePerGas = 0;
-    uint64_t gasPrice = 0;
-
 };
 } // namespace ethyl
