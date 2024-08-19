@@ -103,10 +103,10 @@ target_link_libraries(
     nlohmann_json::nlohmann_json
     oxenc::oxenc
     secp256k1
+    ethyl-keccak
   PRIVATE
     cpr::cpr
     oxen::logging
-    ethyl-keccak
     gmp
     gmpxx
 )
