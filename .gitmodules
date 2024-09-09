@@ -3,7 +3,7 @@
 	url = https://github.com/catchorg/Catch2.git
 [submodule "external/cpr"]
 	path = external/cpr
-	url = https://github.com/libcpr/cpr.git
+	url = https://github.com/oxen-io/cpr.git
 [submodule "external/secp256k1"]
 	path = external/secp256k1
 	url = https://github.com/bitcoin-core/secp256k1.git
