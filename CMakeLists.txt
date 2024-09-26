@@ -106,8 +106,7 @@ target_link_libraries(
   PRIVATE
     cpr::cpr
     oxen::logging
-    gmp
-    gmpxx
+    gmp::gmp
 )
 if(${PROJECT_NAME}_ENABLE_SIGNER)
     target_link_libraries(${PROJECT_NAME} PUBLIC secp256k1)

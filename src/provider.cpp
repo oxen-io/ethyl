@@ -15,7 +15,7 @@
 #include "ethyl/provider.hpp"
 #include "ethyl/utils.hpp"
 
-#include <gmpxx.h>
+#include <gmp.h>
 
 namespace
 {
@@ -704,22 +704,23 @@ void Provider::getBalanceAsync(std::string_view address, optional_callback<std::
             return;
         }
 
-        try
-        {
-            std::string balanceHex = r->get<std::string>();
+        std::string balanceHex = r->get<std::string>();
 
-            // Convert balance from hex to GMP multi-precision integer
-            mpz_class balance;
-            balance.set_str(balanceHex, 0); // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
+        // Convert balance from hex to GMP multi-precision integer
 
-            user_cb(balance.get_str());
-            return;
+        std::optional<std::string> bal10;
+        mpz_t balance;
+        // 0 as base to automatically pick up hex from the prepended 0x of our balanceHex string
+        if (int rc = mpz_init_set_str(balance, balanceHex.c_str(), 0); rc == 0) {
+            bal10.emplace();
+            bal10->resize(mpz_sizeinbase(balance, 10) + 1);
+            mpz_get_str(bal10->data(), 10, balance);
+            bal10->resize(std::strlen(bal10->c_str()));
+        } else {
+            log::warning(logcat, "eth_getBalance response, failed to parse bigint: {}", balanceHex);
         }
-        catch (const std::exception& e)
-        {
-            log::warning(logcat, "eth_getBalance response, failed to parse bigint: {}", r->get<std::string>());
-            user_cb(std::nullopt);
-        }
+        mpz_clear(balance);
+        user_cb(std::move(bal10));
     };
     makeJsonRpcRequest("eth_getBalance", params, std::move(cb));
 }
