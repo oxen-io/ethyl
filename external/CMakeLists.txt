@@ -62,7 +62,8 @@ endif()
 # GMP
 #
 
-pkg_check_modules(GMP gmp IMPORTED_TARGET REQUIRED)
-add_library(gmp INTERFACE)
-target_link_libraries(gmp INTERFACE PkgConfig::GMP)
-message(STATUS "Found gmp ${GMP_VERSION}")
+if(NOT TARGET gmp::gmp)
+    pkg_check_modules(GMP gmp IMPORTED_TARGET REQUIRED GLOBAL)
+    add_library(gmp::gmp ALIAS PkgConfig::GMP)
+    message(STATUS "Found gmp ${GMP_VERSION}")
+endif()
