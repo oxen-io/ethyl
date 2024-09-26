@@ -2,12 +2,13 @@
 #include <chrono>
 #include <thread>
 
-#include <cpr/cpr.h>
 #pragma GCC diagnostic push
 #ifndef __clang__
 #pragma GCC diagnostic ignored "-Wuseless-cast"
+#pragma GCC diagnostic ignored "-Wconversion"
 #endif
 #include <nlohmann/json.hpp>
+#include <cpr/cpr.h>
 #pragma GCC diagnostic pop
 
 #include <oxen/log.hpp>
