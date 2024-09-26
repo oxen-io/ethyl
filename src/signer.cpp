@@ -1,6 +1,6 @@
 #include "ethyl/signer.hpp"
 
-#include "ethyl/ecdsa_util.h"
+#include "ecdsa_util.h"
 #include "ethyl/utils.hpp"
 #include "ethyl/transaction.hpp"
 
