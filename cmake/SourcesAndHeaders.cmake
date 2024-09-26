@@ -1,16 +1,13 @@
 set(sources
     src/utils.cpp
     src/provider.cpp
-    src/signer.cpp
     src/transaction.cpp
 )
 
-set(headers
-    include/ethyl/utils.hpp
-    include/ethyl/provider.hpp
-    include/ethyl/signer.hpp
-    include/ethyl/transaction.hpp
-)
+if(${PROJECT_NAME}_ENABLE_SIGNER)
+    list(APPEND sources src/signer.cpp)
+endif()
+
 
 set(test_sources
   src/basic.cpp

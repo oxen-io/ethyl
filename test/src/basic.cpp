@@ -11,7 +11,7 @@
 
 #include <secp256k1.h>
 
-#include "ethyl/ecdsa_util.h"
+#include "../../src/ecdsa_util.h"
 #include <oxenc/hex.h>
 
 #include <catch2/catch_test_macros.hpp>

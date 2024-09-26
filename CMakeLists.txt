@@ -102,7 +102,6 @@ target_link_libraries(
   PUBLIC
     nlohmann_json::nlohmann_json
     oxenc::oxenc
-    secp256k1
     ethyl-keccak
   PRIVATE
     cpr::cpr
@@ -110,6 +109,9 @@ target_link_libraries(
     gmp
     gmpxx
 )
+if(${PROJECT_NAME}_ENABLE_SIGNER)
+    target_link_libraries(${PROJECT_NAME} PUBLIC secp256k1)
+endif()
 
 verbose_message("Successfully added all dependencies and linked against them.")
 
@@ -147,10 +149,19 @@ message(STATUS "Finished building requirements for installing the package.\n")
 if(${PROJECT_NAME}_INSTALL)
     include(GNUInstallDirs)
 
+    set(header_exclude)
+    if(NOT ${PROJECT_NAME}_ENABLE_SIGNER)
+        set(header_exclude PATTERN "signer.hpp" EXCLUDE)
+    endif()
+
+
     install(
         DIRECTORY include/ethyl
         TYPE INCLUDE
-        FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h")
+        FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h"
+        ${header_exclude})
 
     install(
         TARGETS ${PROJECT_NAME}

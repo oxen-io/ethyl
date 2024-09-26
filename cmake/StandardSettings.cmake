@@ -27,6 +27,15 @@ option(${PROJECT_NAME}_ENABLE_UNIT_TESTING "Enable unit tests for the projects (
 option(${PROJECT_NAME}_ENABLE_CRYPTO_LIBRARY "Use the internal crypto library" ON)
 
 #
+# Whether to build secp256k1 + ethyl's Signer class
+#
+option(${PROJECT_NAME}_ENABLE_SIGNER "Build ethyl::Signer and secp256k1" ON)
+
+if(${PROJECT_NAME}_ENABLE_UNIT_TESTING AND NOT ${PROJECT_NAME}_ENABLE_SIGNER)
+    message(FATAL_ERROR "Configuration error: ${PROJECT_NAME}_ENABLE_UNIT_TESTING requires ${PROJECT_NAME}_ENABLE_SIGNER")
+endif()
+
+#
 # Static analyzers
 #
 # Currently supporting: Clang-Tidy, Cppcheck.
