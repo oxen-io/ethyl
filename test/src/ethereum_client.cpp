@@ -20,9 +20,17 @@ inline constexpr std::string_view ANVIL_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827
 inline constexpr auto ANVIL_PRIVATE_KEY         = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"_hex_u;
 Signer signer;
 
+std::string ethRPC() {
+    static auto* eth_rpc = std::getenv("ETH_RPC");
+    if (eth_rpc && strlen(eth_rpc))
+        return eth_rpc;
+    return "127.0.0.1:8545"s;
+}
+
 int main(int argc, char *argv[]) {
-    signer.provider->addClient("Client", "127.0.0.1:8545");
-    std::cout << "Note to run these tests, ensure that a local Ethereum development network is running at 127.0.0.1:8545" << "\n";
+    auto rpc = ethRPC();
+    signer.provider->addClient("Client", rpc);
+    std::cout << "Note to run these tests, ensure that a local Ethereum development network is running at " << rpc << "\n";
     int result = Catch::Session().run(argc, argv);
     return result;
 }
@@ -121,7 +129,7 @@ TEST_CASE( "Does a self transfer on network using signer to populate", "[transac
 TEST_CASE("Test multiple clients", "[provider]") {
     auto provider = Provider::make_provider();
     provider->setTimeout(std::chrono::milliseconds(1000));
-    provider->addClient("Client", "127.0.0.1:8545");
-    provider->addClient("Bad Client", "127.0.0.1:8546"); // Add non-existent client
+    provider->addClient("Client", ethRPC());
+    provider->addClient("Bad Client", "127.3.4.5:12345"); // Add non-existent client
     CHECK(provider->connectToNetwork());
 }

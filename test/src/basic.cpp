@@ -23,13 +23,6 @@ unsigned int Factorial( unsigned int number ) {
 
 int add(int a, int b) { return a + b; }
 
-int64_t request() {
-    cpr::Response r = cpr::Get(cpr::Url{"https://api.github.com/repos/whoshuu/cpr/contributors"},
-                      cpr::Authentication{"user", "pass", cpr::AuthMode::BASIC},
-                      cpr::Parameters{{"anon", "true"}, {"key", "value"}});
-    return r.status_code;
-}
-
 int ecdsa() {
     /* Instead of signing the message directly, we must sign a 32-byte hash.
      * Here the message is "Hello, world!" and the hash function was SHA-256.
@@ -163,10 +156,6 @@ TEST_CASE( "Factorials are computed", "[basic]" ) {
 
 TEST_CASE( "Add", "[basic]" ) {
     REQUIRE( add(1,2) == 3 );
-}
-
-TEST_CASE( "Request", "[basic]" ) {
-    REQUIRE( request() == 200 );
 }
 
 TEST_CASE( "ECDSA", "[basic]" ) {
