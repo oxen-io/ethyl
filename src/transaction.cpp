@@ -42,9 +42,9 @@ std::vector<unsigned char> Transaction::serialize() const {
 
     std::string serializedBytes = rlp_serialize(arr);
     std::vector<unsigned char> result;
-    result.reserve(1 /*header*/ + serializedBytes.size());
-    result.push_back(0x02);
-    result.insert(result.end(), serializedBytes.begin(), serializedBytes.end());
+    result.resize(1 /*header*/ + serializedBytes.size());
+    result[0] = 0x02;
+    std::memcpy(result.data() + 1, serializedBytes.data(), serializedBytes.size());
     return result;
 }
 
