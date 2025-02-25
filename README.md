@@ -1,3 +1,6 @@
+# Repository Deprecated
+## This repository is now deprecated. Ethyl now exists [here](https://github.com/session-foundation/ethyl). This is in line with announcements from [Session](https://getsession.org/blog/introducing-the-session-technology-foundation) and the [OPTF](https://optf.ngo/blog/the-optf-and-session), indicating that the OPTF has handed over the stewardship of the Session Project and token libraries to the [Session Technology Foundation](https://session.foundation), a Swiss-based foundation dedicated to advancing digital rights and innovation.
+
 # Ethyl
 
 C++ library for communicating with Ethereum.
